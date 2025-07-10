@@ -34,7 +34,8 @@ def fetch_content(url):
         response.raise_for_status()
         return response.content
     except requests.RequestException as e:
-        print(f"获取 {url} 出错: {e}")
+        # 使用 warning 格式输出错误，使其在日志中更显眼
+        print(f"::warning::获取 {url} 出错: {e}")
         return None
 
 def get_content_hash(content):
@@ -70,13 +71,13 @@ def send_webhook_notification(webhook_url, timestamp, summary):
         requests.post(webhook_url, json=payload, timeout=10)
         print("Webhook 通知已发送。")
     except Exception as e:
-        print(f"发送 Webhook 通知失败: {e}")
+        print(f"::error::发送 Webhook 通知失败: {e}")
 
 def send_email_notification(subject, body):
     """发送邮件通知"""
     mail_to = os.environ.get("MAIL_TO")
     if not mail_to:
-        print("未配置邮件接收人，跳过邮件通知。")
+        print("::notice::未配置邮件接收人，跳过邮件通知。")
         return
 
     smtp_host = os.environ.get("SMTP_HOST")
@@ -86,7 +87,7 @@ def send_email_notification(subject, body):
     mail_from = os.environ.get("MAIL_FROM")
 
     if not all([smtp_host, smtp_port, smtp_user, smtp_password, mail_from]):
-        print("SMTP 服务器未完全配置，跳过邮件通知。")
+        print("::notice::SMTP 服务器未完全配置，跳过邮件通知。")
         return
     
     message = MIMEMultipart("alternative")
@@ -107,7 +108,7 @@ def send_email_notification(subject, body):
             server.sendmail(mail_from, mail_to.split(','), message.as_string())
             print("邮件通知发送成功。")
     except Exception as e:
-        print(f"发送邮件失败: {e}")
+        print(f"::error::发送邮件失败: {e}")
 
 def main():
     """脚本主逻辑函数"""
@@ -118,7 +119,7 @@ def main():
         with open("urls.txt", "r", encoding="utf-8") as f:
             urls = [line.strip() for line in f if line.strip()]
     except FileNotFoundError:
-        print("错误: 未找到 urls.txt 文件。")
+        print("::error::错误: 未找到 urls.txt 文件。")
         sys.exit(1)
 
     all_changes_details = []
@@ -145,7 +146,8 @@ def main():
                 last_hash = f.read().strip()
 
         if current_hash != last_hash:
-            print(f"检测到 {url} 发生变化")
+            # 使用带标题的 notice 格式，在 Actions UI 中更清晰
+            print(f"::notice title=检测到变化::{url}")
             
             now = datetime.now()
             timestamp_str = now.strftime("%Y%m%d_%H%M%S")
@@ -180,7 +182,8 @@ def main():
 
             all_changes_details.append(f"URL: {url}\n变更时间: {now.strftime('%Y-%m-%d %H:%M:%S')}\n快照路径: {change_dir}")
         else:
-            print(f"未检测到 {url} 发生变化")
+            # 使用 notice 格式输出无变化的信息
+            print(f"::notice title=无变化::{url}")
 
     if all_changes_details:
         now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
