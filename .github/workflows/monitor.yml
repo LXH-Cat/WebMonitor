@@ -1,0 +1,66 @@
+# 工作流名称
+name: Website Change Monitor
+
+on:
+  # 定时触发：使用 cron 语法，表示每6小时执行一次
+  schedule:
+    - cron: '0 */6 * * *'
+  
+  # 手动触发：允许你在 GitHub Actions 页面手动运行此工作流
+  workflow_dispatch:
+
+jobs:
+  monitor-and-commit:
+    # 运行环境
+    runs-on: ubuntu-latest
+    
+    # 将所有需要的 secrets 传递给 Python 脚本作为环境变量
+    env:
+      # Webhook 相关
+      WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
+      WEBHOOK_CUSTOM_PAYLOAD: ${{ secrets.WEBHOOK_CUSTOM_PAYLOAD }}
+      
+      # 邮件通知相关
+      MAIL_TO: ${{ secrets.MAIL_TO }}
+      MAIL_FROM: ${{ secrets.MAIL_FROM }}
+      SMTP_HOST: ${{ secrets.SMTP_HOST }}
+      SMTP_PORT: ${{ secrets.SMTP_PORT }}
+      SMTP_USER: ${{ secrets.SMTP_USER }}
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+
+    steps:
+      # 步骤1：检出代码
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 步骤2：设置 Python 环境
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      # 步骤3：安装依赖库
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      # 步骤4：运行监控脚本
+      - name: Run website monitor script
+        id: monitor
+        run: python monitor.py
+
+      # 步骤5：提交变更 (若有)
+      - name: Commit and push if changes were found
+        if: steps.monitor.outputs.changes_detected == 'true'
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add snapshots/
+          # 检查是否有文件被暂存
+          if ! git diff --staged --quiet; then
+            git commit -m "【自动监控】网页内容发生变化"
+            git push
+          else
+            echo "文件无变更，无需提交"
+          fi
