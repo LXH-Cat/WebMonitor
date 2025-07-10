@@ -17,6 +17,8 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
 }
 TIMEOUT = 30
+# 通知中显示的最大差异行数
+MAX_DIFF_LINES = 10
 
 def get_safe_filename(url):
     """根据URL生成一个安全的文件名"""
@@ -59,7 +61,7 @@ def send_webhook_notification(webhook_url, timestamp, summary):
             text_content = (
                 f"网页变更监控提醒\n"
                 f"检测时间: {timestamp}\n\n"
-                f"检测到以下页面发生变更:\n\n{summary}"
+                f"{summary}"
             )
             payload = {
                 "msgtype": "text",
@@ -112,6 +114,10 @@ def send_email_notification(subject, body):
 
 def main():
     """脚本主逻辑函数"""
+    repo_full_name = os.environ.get("GITHUB_REPOSITORY")
+    if not repo_full_name:
+        print("::warning::未找到 GITHUB_REPOSITORY 环境变量，无法生成快照链接。")
+
     if not os.path.exists(SNAPSHOT_DIR):
         os.makedirs(SNAPSHOT_DIR)
 
@@ -122,7 +128,7 @@ def main():
         print("::error::错误: 未找到 urls.txt 文件。")
         sys.exit(1)
 
-    all_changes_details = []
+    all_changes = []
 
     for url in urls:
         print(f"正在检查 {url}...")
@@ -179,15 +185,44 @@ def main():
             
             with open(latest_hash_file, "w", encoding="utf-8") as f:
                 f.write(current_hash)
+            
+            # 为通知准备结构化信息
+            snapshot_url = ""
+            if repo_full_name:
+                # 假设默认分支为 main，可以根据需要修改
+                snapshot_url = f"https://github.com/{repo_full_name}/tree/main/{change_dir}"
+            
+            # 截断过长的差异内容
+            diff_lines = diff_report_content.split('\n')
+            if len(diff_lines) > MAX_DIFF_LINES:
+                truncated_diff = '\n'.join(diff_lines[:MAX_DIFF_LINES]) + "\n... (内容已截断，请查看快照链接获取完整差异)"
+            else:
+                truncated_diff = diff_report_content
 
-            all_changes_details.append(f"URL: {url}\n变更时间: {now.strftime('%Y-%m-%d %H:%M:%S')}\n快照路径: {change_dir}")
+            change_info = {
+                "url": url,
+                "timestamp": now.strftime('%Y-%m-%d %H:%M:%S'),
+                "snapshot_url": snapshot_url,
+                "diff": truncated_diff
+            }
+            all_changes.append(change_info)
         else:
             # 使用 notice 格式输出无变化的信息
             print(f"::notice title=无变化::{url}")
 
-    if all_changes_details:
+    if all_changes:
+        summary_parts = []
+        for change in all_changes:
+            part = (
+                f"URL: {change['url']}\n"
+                f"变更时间: {change['timestamp']}\n"
+                f"查看快照: {change['snapshot_url']}\n\n"
+                f"变更内容:\n---\n{change['diff']}\n---"
+            )
+            summary_parts.append(part)
+        
+        summary = "\n\n".join(summary_parts)
         now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        summary = "\n\n".join(all_changes_details)
         
         print("\n--- 变更摘要 ---")
         print(summary)
