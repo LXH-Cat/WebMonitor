@@ -42,7 +42,7 @@ def get_content_hash(content):
     return hashlib.sha256(content).hexdigest()
 
 def send_webhook_notification(webhook_url, timestamp, summary):
-    """发送 Webhook 通知，支持自定义格式"""
+    """发送 Webhook 通知，支持自定义格式，默认适配企业微信"""
     if not webhook_url:
         return
 
@@ -50,12 +50,23 @@ def send_webhook_notification(webhook_url, timestamp, summary):
     
     try:
         if custom_payload_str:
-            # 替换模板中的变量
+            # 优先使用用户自定义的 payload 模板
             payload_str = custom_payload_str.replace("{timestamp}", timestamp).replace("{changes_summary}", summary)
             payload = json.loads(payload_str)
         else:
-            # 使用默认的简单格式
-            payload = {"msg_type": "text", "content": {"text": f"网页变更提醒 时间: {timestamp}\n\n{summary}"}}
+            # 默认生成企业微信兼容的 Markdown 格式
+            markdown_content = (
+                f'## 网页变更监控提醒\n'
+                f'> **检测时间:** <font color="comment">{timestamp}</font>\n\n'
+                f'<font color="warning">检测到以下页面发生变更:</font>\n\n'
+                f'{summary}'
+            )
+            payload = {
+                "msgtype": "markdown",
+                "markdown": {
+                    "content": markdown_content
+                }
+            }
         
         requests.post(webhook_url, json=payload, timeout=10)
         print("Webhook 通知已发送。")
@@ -168,7 +179,7 @@ def main():
             with open(latest_hash_file, "w", encoding="utf-8") as f:
                 f.write(current_hash)
 
-            all_changes_details.append(f"URL: {url}\n变更时间: {now.strftime('%Y-%m-%d %H:%M:%S')}\n快照路径: {change_dir}")
+            all_changes_details.append(f"**URL:** `{url}`\n**变更时间:** {now.strftime('%Y-%m-%d %H:%M:%S')}\n**快照路径:** `{change_dir}`")
         else:
             print(f"未检测到 {url} 发生变化")
 

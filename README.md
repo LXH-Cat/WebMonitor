@@ -57,7 +57,7 @@ https://www.another-website.org/about.html
 前往您的 GitHub 仓库页面，点击 `Settings` -> `Secrets and variables` -> `Actions`，然后点击 `New repository secret` 添加以下密钥：
 
 * **Webhook 通知** :
-* `WEBHOOK_URL`: 您的 Webhook 接收地址。
+* `WEBHOOK_URL`: 您的 Webhook 接收地址。默认格式为企业微信 Webhook 格式。
 * **邮件通知** (如需使用，请**全部**配置):
   * `MAIL_TO`: 您的接收邮箱地址。
   * `MAIL_FROM`: 您用于发送邮件的邮箱地址。
