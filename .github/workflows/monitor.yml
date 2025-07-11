@@ -16,19 +16,16 @@ jobs:
     
     # 将所有需要的 secrets 和 variables 传递给 Python 脚本作为环境变量
     env:
-      # Webhook 相关 (来自 Secrets)
+      # --- 敏感信息 (存放于 Secrets) ---
       WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
-      WEBHOOK_CUSTOM_PAYLOAD: ${{ secrets.WEBHOOK_CUSTOM_PAYLOAD }}
-      
-      # 邮件通知相关 (来自 Secrets)
-      MAIL_TO: ${{ secrets.MAIL_TO }} # 兼容旧版，但建议使用下方的 Variables
-      MAIL_FROM: ${{ secrets.MAIL_FROM }}
-      SMTP_HOST: ${{ secrets.SMTP_HOST }}
-      SMTP_PORT: ${{ secrets.SMTP_PORT }}
-      SMTP_USER: ${{ secrets.SMTP_USER }}
       SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
 
-      # 邮件接收人 (来自 Variables)
+      # --- 普通配置 (存放于 Variables, 方便修改) ---
+      WEBHOOK_CUSTOM_PAYLOAD: ${{ vars.WEBHOOK_CUSTOM_PAYLOAD }}
+      MAIL_FROM: ${{ vars.MAIL_FROM }}
+      SMTP_HOST: ${{ vars.SMTP_HOST }}
+      SMTP_PORT: ${{ vars.SMTP_PORT }}
+      SMTP_USER: ${{ vars.SMTP_USER }}
       MAIL_RECIPIENTS: ${{ vars.MAIL_RECIPIENTS }}
 
     steps:

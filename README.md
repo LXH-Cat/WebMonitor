@@ -12,13 +12,14 @@ Made by Gemini & 白隐Hakuin
 * **历史快照与差异记录** : 自动将新旧网页快照和详细的 `diff` 报告存入仓库，永久保留变更历史。
 * **清晰的日志输出** : 在 Actions 的运行日志中，使用醒目的通知格式清晰展示每个 URL 的检测结果。
 * **多种通知渠道** :
-* **GitHub Commits** : 每次变更都会生成一条清晰的提交记录。
+* **GitHub Commits** : 每次变更都会生成一条带有精确时间戳的提交记录。
 * **Webhook** :
   * 支持向**多个**地址推送。
   * 支持自定义推送格式，可轻松集成到飞书、钉钉、企业微信等平台。
 * **邮件通知** :
   * 支持向**多个**邮箱地址发送。
   * 提供灵活、安全的收件人管理方式。
+  * 采用美观、简洁的 HTML 邮件样式。
 * **内容丰富的通知** :
 * 通知中包含具体的 **变更内容摘要** 。
 * 提供一个**直达 GitHub 仓库**的链接，方便您在线查看本次变更的完整快照和差异文件。
@@ -63,28 +64,23 @@ https://www.another-website.org/about.html
 
 前往您的 GitHub 仓库页面，点击 `Settings` -> `Secrets and variables` -> `Actions`。
 
-**A. 配置邮件接收人 (推荐方式)**
-
-1. 点击 `Variables` 标签页。
-2. 点击 `New repository variable`。
-   * **名称 (Name)** : `MAIL_RECIPIENTS`
-   * 值 (Value): 输入您的邮箱地址。如有多个，请用英文逗号 (,) 分隔。
-     示例: user1@example.com,user2@example.com
-
-**B. 配置其他密钥**
+**A. 配置密钥 (Secrets) - 用于存放高度敏感信息**
 
 1. 点击 `Secrets` 标签页。
 2. 点击 `New repository secret`，添加以下密钥：
-   * **Webhook 通知 (可选)** :
+   * `SMTP_PASSWORD`: 您的发件邮箱密码或 **应用授权码 (强烈推荐)** 。
    * `WEBHOOK_URL`: 您的 Webhook 接收地址。 **如有多个，请用英文逗号 (`,`) 分隔** 。
-   * **邮件通知 (可选，如需使用请全部配置)** :
-   * `MAIL_FROM`: 您用于发送邮件的邮箱地址。
+
+**B. 配置变量 (Variables) - 用于存放普通配置，方便修改**
+
+1. 点击 `Variables` 标签页。
+2. 点击 `New repository variable`，添加以下变量：
+   * `MAIL_RECIPIENTS`:  **邮件接收人列表** 。如有多个，请用英文逗号 (`,`) 分隔。
+   * `MAIL_FROM`: 您的发件邮箱地址。
    * `SMTP_HOST`: SMTP 服务器地址 (例如: `smtp.qq.com`)。
    * `SMTP_PORT`: SMTP 服务器端口 (通常是 `465` 或 `587`)。
    * `SMTP_USER`: 您的发件邮箱用户名。
-   * `SMTP_PASSWORD`: 您的发件邮箱密码或 **应用授权码 (强烈推荐)** 。
-   * **自定义 Webhook 格式 (可选)** :
-   * `WEBHOOK_CUSTOM_PAYLOAD`: 一个 JSON 格式的字符串模板 (详见下文)。
+   * `WEBHOOK_CUSTOM_PAYLOAD`: (可选) 自定义 Webhook 的 JSON 模板。
 
 完成以上步骤后，GitHub Action 将会按照 `monitor.yml` 中设定的 `cron` 计划自动运行。您也可以在仓库的 `Actions` 标签页手动触发一次以进行测试。
 
@@ -92,7 +88,7 @@ https://www.another-website.org/about.html
 
 ### 自定义 Webhook
 
-通过设置 `WEBHOOK_CUSTOM_PAYLOAD` 这个 Secret，您可以完全自定义发送到 Webhook 的 JSON 数据结构。在模板中，以下变量会被自动替换：
+通过设置 `WEBHOOK_CUSTOM_PAYLOAD` 这个 Variable，您可以完全自定义发送到 Webhook 的 JSON 数据结构。在模板中，以下变量会被自动替换：
 
 * `{timestamp}`: 变更被检测到的时间 (格式: `YYYY-MM-DD HH:MM:SS`)。
 * `{changes_summary}`: 本次运行检测到的所有变更的详细信息汇总。
@@ -111,10 +107,6 @@ https://www.another-website.org/about.html
 
 > **注意** : 如果不设置此变量，默认会发送企业微信兼容的**纯文本**格式消息。
 
-### 邮件收件人管理
-
-脚本会同时从 `secrets.MAIL_TO` 和 `vars.MAIL_RECIPIENTS` 中读取邮箱地址，并自动合并去重。但我们**强烈建议**您使用 `Variables` 中的 `MAIL_RECIPIENTS` 来管理收件人列表，因为它更方便、更安全。
-
 ## 🔍 如何工作
 
 1. **定时触发** : GitHub Actions 根据 `monitor.yml` 中的 `schedule` 定时启动一个虚拟机。
@@ -130,11 +122,11 @@ https://www.another-website.org/about.html
 5. 汇总与通知: 如果在本次运行中有任何一个 URL 发生了变化，脚本会：
    a. 生成一份包含所有变更信息的摘要，包括变更内容和GitHub快照链接。
    b. 调用 Webhook 和邮件功能，向所有配置的地址发送通知。
-   c. 设置一个输出变量 changes_detected=true。
+   c. 设置一个输出变量 changes_detected=true 和 commit_message。
 6. **提交变更** : `monitor.yml` 中的最后一步会检查这个输出变量。如果为 `true`，则执行 `git` 命令，将 `snapshots` 目录下的所有新文件提交并推送到您的仓库。
 
 ## 📜 查看历史
 
-* **Commit 记录** : 在仓库主页的提交历史中，所有由机器人产生的提交信息都以 `【自动监控】` 开头。
+* **Commit 记录** : 在仓库主页的提交历史中，所有由机器人产生的提交信息都以 `【自动监控】` 开头，并附带时间戳。
 * **文件浏览器** : 直接在仓库中浏览 `snapshots` 目录。每个被监控的网站都有一个独立的子目录，其中包含了历次变更的详细快照和差异报告。
 * **Action 日志** : 在仓库的 `Actions` 标签页，您可以点开每一次运行记录，在日志概要中直接看到每个 URL 的检查结果（"检测到变化" 或 "无变化"）。
