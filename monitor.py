@@ -10,6 +10,7 @@ from datetime import datetime
 from urllib.parse import urlparse
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.header import Header
 
 # --- 配置 ---
 SNAPSHOT_DIR = "snapshots"
@@ -94,7 +95,8 @@ def send_email_notification(subject, body, recipients):
         return
     
     message = MIMEMultipart("alternative")
-    message["Subject"] = subject
+    # 使用 Header 类来正确编码包含非 ASCII 字符（如中文）的邮件主题
+    message["Subject"] = Header(subject, 'utf-8')
     message["From"] = mail_from
     message["To"] = ", ".join(recipients) # 显示所有收件人
 
