@@ -156,9 +156,10 @@ def send_email_notification(subject, changes_list, recipients):
 
     # --- 组装邮件 ---
     message = MIMEMultipart("alternative")
+    # 使用 Header 类来正确编码所有包含非 ASCII 字符的邮件头
     message["Subject"] = Header(subject, 'utf-8')
-    message["From"] = mail_from
-    message["To"] = ", ".join(recipients)
+    message["From"] = Header(mail_from, 'utf-8')
+    message["To"] = Header(", ".join(recipients), 'utf-8')
 
     message.attach(MIMEText(plain_body, "plain", "utf-8"))
     message.attach(MIMEText(html_template, "html", "utf-8"))
