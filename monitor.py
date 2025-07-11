@@ -18,7 +18,7 @@ HEADERS = {
 }
 TIMEOUT = 30
 # 通知中显示的最大差异行数
-MAX_DIFF_LINES = 10
+MAX_DIFF_LINES = 30
 
 def get_safe_filename(url):
     """根据URL生成一个安全的文件名"""
@@ -44,42 +44,43 @@ def get_content_hash(content):
     """计算内容的SHA-256哈希值"""
     return hashlib.sha256(content).hexdigest()
 
-def send_webhook_notification(webhook_url, timestamp, summary):
-    """发送 Webhook 通知，支持自定义格式，默认适配企业微信纯文本格式"""
-    if not webhook_url:
+def send_webhook_notification(webhook_urls_str, timestamp, summary):
+    """向多个 Webhook 地址发送通知"""
+    if not webhook_urls_str:
         return
 
+    urls = [url.strip() for url in webhook_urls_str.split(',') if url.strip()]
     custom_payload_str = os.environ.get("WEBHOOK_CUSTOM_PAYLOAD")
-    
-    try:
-        if custom_payload_str:
-            # 优先使用用户自定义的 payload 模板
-            payload_str = custom_payload_str.replace("{timestamp}", timestamp).replace("{changes_summary}", summary)
-            payload = json.loads(payload_str)
-        else:
-            # 默认生成企业微信兼容的 text 格式
-            text_content = (
-                f"网页变更监控提醒\n"
-                f"检测时间: {timestamp}\n\n"
-                f"{summary}"
-            )
-            payload = {
-                "msgtype": "text",
-                "text": {
-                    "content": text_content
-                }
-            }
-        
-        requests.post(webhook_url, json=payload, timeout=10)
-        print("Webhook 通知已发送。")
-    except Exception as e:
-        print(f"::error::发送 Webhook 通知失败: {e}")
 
-def send_email_notification(subject, body):
-    """发送邮件通知"""
-    mail_to = os.environ.get("MAIL_TO")
-    if not mail_to:
-        print("::notice::未配置邮件接收人，跳过邮件通知。")
+    for url in urls:
+        try:
+            if custom_payload_str:
+                # 优先使用用户自定义的 payload 模板
+                payload_str = custom_payload_str.replace("{timestamp}", timestamp).replace("{changes_summary}", summary)
+                payload = json.loads(payload_str)
+            else:
+                # 默认生成企业微信兼容的 text 格式
+                text_content = (
+                    f"网页变更监控提醒\n"
+                    f"检测时间: {timestamp}\n\n"
+                    f"{summary}"
+                )
+                payload = {
+                    "msgtype": "text",
+                    "text": {
+                        "content": text_content
+                    }
+                }
+            
+            requests.post(url, json=payload, timeout=10)
+            print(f"Webhook 通知已发送至: {url}")
+        except Exception as e:
+            print(f"::error::发送 Webhook 通知至 {url} 失败: {e}")
+
+def send_email_notification(subject, body, recipients):
+    """向多个收件人发送邮件通知"""
+    if not recipients:
+        print("::notice::未配置任何邮件接收人，跳过邮件通知。")
         return
 
     smtp_host = os.environ.get("SMTP_HOST")
@@ -95,7 +96,7 @@ def send_email_notification(subject, body):
     message = MIMEMultipart("alternative")
     message["Subject"] = subject
     message["From"] = mail_from
-    message["To"] = mail_to
+    message["To"] = ", ".join(recipients) # 显示所有收件人
 
     # 同时创建纯文本和HTML版本的邮件内容
     part1 = MIMEText(body, "plain", "utf-8")
@@ -107,8 +108,8 @@ def send_email_notification(subject, body):
         context = ssl.create_default_context()
         with smtplib.SMTP_SSL(smtp_host, int(smtp_port), context=context) as server:
             server.login(smtp_user, smtp_password)
-            server.sendmail(mail_from, mail_to.split(','), message.as_string())
-            print("邮件通知发送成功。")
+            server.sendmail(mail_from, recipients, message.as_string())
+            print(f"邮件通知发送成功，共 {len(recipients)} 个收件人。")
     except Exception as e:
         print(f"::error::发送邮件失败: {e}")
 
@@ -156,7 +157,7 @@ def main():
             print(f"::notice title=检测到变化::{url}")
             
             now = datetime.now()
-            timestamp_str = now.strftime("%Y%m%d_%H%M%S")
+            timestamp_str = now.strftime("%Ym%d_%H%M%S")
             
             change_dir = os.path.join(url_dir, timestamp_str)
             os.makedirs(change_dir)
@@ -211,6 +212,7 @@ def main():
             print(f"::notice title=无变化::{url}")
 
     if all_changes:
+        # --- 汇总并发送通知 ---
         summary_parts = []
         for change in all_changes:
             part = (
@@ -228,12 +230,27 @@ def main():
         print(summary)
         
         # 发送 Webhook
-        webhook_url = os.environ.get("WEBHOOK_URL")
-        send_webhook_notification(webhook_url, now_str, summary)
+        webhook_urls = os.environ.get("WEBHOOK_URL")
+        send_webhook_notification(webhook_urls, now_str, summary)
         
+        # --- 收集邮件收件人 ---
+        recipients = []
+        # 1. 从 Secret `MAIL_TO` 读取 (兼容旧版)
+        mail_to_secret = os.environ.get("MAIL_TO")
+        if mail_to_secret:
+            recipients.extend([email.strip() for email in mail_to_secret.split(',') if email.strip()])
+        
+        # 2. 从 Variable `MAIL_RECIPIENTS` 读取 (推荐方式)
+        mail_recipients_var = os.environ.get("MAIL_RECIPIENTS")
+        if mail_recipients_var:
+            recipients.extend([email.strip() for email in mail_recipients_var.split(',') if email.strip()])
+        
+        # 去除重复的邮箱地址
+        unique_recipients = sorted(list(set(recipients)))
+
         # 发送邮件
         email_subject = f"网页变更监控提醒 ({now_str})"
-        send_email_notification(email_subject, summary)
+        send_email_notification(email_subject, summary, unique_recipients)
         
         # 设置 GitHub Action 输出
         if 'GITHUB_OUTPUT' in os.environ:

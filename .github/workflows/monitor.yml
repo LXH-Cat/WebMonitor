@@ -14,19 +14,22 @@ jobs:
     # 运行环境
     runs-on: ubuntu-latest
     
-    # 将所有需要的 secrets 传递给 Python 脚本作为环境变量
+    # 将所有需要的 secrets 和 variables 传递给 Python 脚本作为环境变量
     env:
-      # Webhook 相关
+      # Webhook 相关 (来自 Secrets)
       WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
       WEBHOOK_CUSTOM_PAYLOAD: ${{ secrets.WEBHOOK_CUSTOM_PAYLOAD }}
       
-      # 邮件通知相关
-      MAIL_TO: ${{ secrets.MAIL_TO }}
+      # 邮件通知相关 (来自 Secrets)
+      MAIL_TO: ${{ secrets.MAIL_TO }} # 兼容旧版，但建议使用下方的 Variables
       MAIL_FROM: ${{ secrets.MAIL_FROM }}
       SMTP_HOST: ${{ secrets.SMTP_HOST }}
       SMTP_PORT: ${{ secrets.SMTP_PORT }}
       SMTP_USER: ${{ secrets.SMTP_USER }}
       SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+
+      # 邮件接收人 (来自 Variables)
+      MAIL_RECIPIENTS: ${{ vars.MAIL_RECIPIENTS }}
 
     steps:
       # 步骤1：检出代码
@@ -62,5 +65,5 @@ jobs:
             git commit -m "【自动监控】网页内容发生变化"
             git push
           else
-            echo "文件无变更，无需提交"
+            echo "文件无变更，无需提交。"
           fi
