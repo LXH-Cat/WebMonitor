@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.header import Header
+from email.utils import formataddr
 
 # --- 配置 ---
 SNAPSHOT_DIR = "snapshots"
@@ -89,6 +90,7 @@ def send_email_notification(subject, changes_list, recipients):
     smtp_user = os.environ.get("SMTP_USER")
     smtp_password = os.environ.get("SMTP_PASSWORD")
     mail_from = os.environ.get("MAIL_FROM")
+    sender_name = os.environ.get("MAIL_SENDER_NAME")
 
     if not all([smtp_host, smtp_port, smtp_user, smtp_password, mail_from]):
         print("::notice::SMTP 服务器未完全配置，跳过邮件通知。")
@@ -113,12 +115,12 @@ def send_email_notification(subject, changes_list, recipients):
         # 将换行符转换成 <br> 并对特殊 HTML 字符进行转义
         diff_html = change['diff'].replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('\n', '<br>')
         part = f"""
-        <div style="margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #eeeeee;">
-            <p style="margin: 0 0 5px; font-size: 14px; color: #555555;"><strong>URL:</strong> <a href="{change['url']}" style="color: #007bff; text-decoration: none;">{change['url']}</a></p>
-            <p style="margin: 0 0 5px; font-size: 14px; color: #555555;"><strong>变更时间:</strong> {change['timestamp']}</p>
-            <p style="margin: 0 0 15px; font-size: 14px; color: #555555;"><strong>查看快照:</strong> <a href="{change['snapshot_url']}" style="color: #007bff; text-decoration: none;">在 GitHub 上查看</a></p>
-            <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; font-family: 'Courier New', Courier, monospace; font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; border: 1px solid #dee2e6;">
-                <strong style="font-family: -apple-system, sans-serif; display: block; margin-bottom: 10px; font-size: 13px; color: #333;">变更内容:</strong>
+        <div class="change-block">
+            <p><strong>URL:</strong> <a href="{change['url']}" class="link">{change['url']}</a></p>
+            <p><strong>变更时间:</strong> {change['timestamp']}</p>
+            <p><strong>查看快照:</strong> <a href="{change['snapshot_url']}" class="link">在 GitHub 上查看</a></p>
+            <div class="diff-box">
+                <strong class="diff-title">变更内容:</strong>
                 {diff_html}
             </div>
         </div>
@@ -134,10 +136,16 @@ def send_email_notification(subject, changes_list, recipients):
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{subject}</title>
     <style>
-      body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.6; color: #333333; background-color: #f4f4f4; margin: 0; padding: 0; }}
-      .container {{ max-width: 680px; margin: 20px auto; padding: 25px; border-radius: 8px; background-color: #ffffff; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
-      .header {{ font-size: 24px; font-weight: 600; color: #c9302c; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #eeeeee; text-align: center; }}
-      .footer {{ margin-top: 25px; font-size: 12px; text-align: center; color: #888888; }}
+      body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.6; color: #333333; background-color: #f7f8fa; margin: 0; padding: 0; }}
+      .container {{ max-width: 680px; margin: 20px auto; padding: 30px; border-radius: 8px; background-color: #ffffff; border: 1px solid #e9e9e9; }}
+      .header {{ font-size: 24px; font-weight: 600; color: #2c3e50; margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #eeeeee; text-align: center; }}
+      .change-block {{ margin-bottom: 25px; padding: 20px; border-radius: 6px; border: 1px solid #dfe6e9; border-left: 4px solid #3498db; }}
+      .change-block p {{ margin: 0 0 8px; font-size: 14px; color: #555555; }}
+      .link {{ color: #3498db; text-decoration: none; }}
+      .link:hover {{ text-decoration: underline; }}
+      .diff-box {{ background-color: #fdfdfd; padding: 15px; margin-top: 15px; border-radius: 5px; font-family: 'Courier New', Courier, monospace; font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; border: 1px solid #f0f0f0; }}
+      .diff-title {{ font-family: -apple-system, sans-serif; display: block; margin-bottom: 10px; font-size: 13px; color: #333; font-weight: 600; }}
+      .footer {{ margin-top: 30px; font-size: 12px; text-align: center; color: #999999; }}
     </style>
     </head>
     <body>
@@ -156,10 +164,14 @@ def send_email_notification(subject, changes_list, recipients):
 
     # --- 组装邮件 ---
     message = MIMEMultipart("alternative")
-    # 使用 Header 类来正确编码所有包含非 ASCII 字符的邮件头
     message["Subject"] = Header(subject, 'utf-8')
-    message["From"] = Header(mail_from, 'utf-8')
-    message["To"] = Header(", ".join(recipients), 'utf-8')
+    # 正确设置发件人：如果设置了昵称，则使用 "昵称 <邮箱>" 格式，否则直接使用邮箱
+    if sender_name:
+        message["From"] = formataddr((Header(sender_name, 'utf-8').encode(), mail_from))
+    else:
+        message["From"] = mail_from
+    # 正确设置收件人：直接使用逗号分隔的字符串，不再错误地编码
+    message["To"] = ", ".join(recipients)
 
     message.attach(MIMEText(plain_body, "plain", "utf-8"))
     message.attach(MIMEText(html_template, "html", "utf-8"))
@@ -295,7 +307,7 @@ def main():
         
         # --- 收集邮件收件人 ---
         recipients = []
-        # 1. 从 Secret `MAIL_TO` 读取 (兼容旧版)
+        # 1. 从 Secret `MAIL_TO` 读取 (兼容旧版, 已不推荐)
         mail_to_secret = os.environ.get("MAIL_TO")
         if mail_to_secret:
             recipients.extend([email.strip() for email in mail_to_secret.split(',') if email.strip()])

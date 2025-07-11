@@ -23,6 +23,7 @@ jobs:
       # --- 普通配置 (存放于 Variables, 方便修改) ---
       WEBHOOK_CUSTOM_PAYLOAD: ${{ vars.WEBHOOK_CUSTOM_PAYLOAD }}
       MAIL_FROM: ${{ vars.MAIL_FROM }}
+      MAIL_SENDER_NAME: ${{ vars.MAIL_SENDER_NAME }} # 新增：发件人昵称
       SMTP_HOST: ${{ vars.SMTP_HOST }}
       SMTP_PORT: ${{ vars.SMTP_PORT }}
       SMTP_USER: ${{ vars.SMTP_USER }}
