@@ -62,7 +62,8 @@ jobs:
           git add snapshots/
           # 检查是否有文件被暂存
           if ! git diff --staged --quiet; then
-            git commit -m "【自动监控】网页内容发生变化"
+            # 使用 Python 脚本生成的带有时间戳的 commit message
+            git commit -m "${{ steps.monitor.outputs.commit_message }}"
             git push
           else
             echo "文件无变更，无需提交。"

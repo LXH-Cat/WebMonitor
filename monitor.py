@@ -78,8 +78,8 @@ def send_webhook_notification(webhook_urls_str, timestamp, summary):
         except Exception as e:
             print(f"::error::发送 Webhook 通知至 {url} 失败: {e}")
 
-def send_email_notification(subject, body, recipients):
-    """向多个收件人发送邮件通知"""
+def send_email_notification(subject, changes_list, recipients):
+    """向多个收件人发送样式丰富的邮件通知"""
     if not recipients:
         print("::notice::未配置任何邮件接收人，跳过邮件通知。")
         return
@@ -94,17 +94,74 @@ def send_email_notification(subject, body, recipients):
         print("::notice::SMTP 服务器未完全配置，跳过邮件通知。")
         return
     
+    # --- 生成邮件内容 ---
+    # 1. 纯文本版本
+    plain_text_parts = []
+    for change in changes_list:
+        part = (
+            f"URL: {change['url']}\n"
+            f"变更时间: {change['timestamp']}\n"
+            f"查看快照: {change['snapshot_url']}\n\n"
+            f"变更内容:\n---\n{change['diff']}\n---"
+        )
+        plain_text_parts.append(part)
+    plain_body = "\n\n".join(plain_text_parts)
+
+    # 2. HTML 版本
+    html_content_parts = []
+    for change in changes_list:
+        # 将换行符转换成 <br> 并对特殊 HTML 字符进行转义
+        diff_html = change['diff'].replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('\n', '<br>')
+        part = f"""
+        <div style="margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #eeeeee;">
+            <p style="margin: 0 0 5px; font-size: 14px; color: #555555;"><strong>URL:</strong> <a href="{change['url']}" style="color: #007bff; text-decoration: none;">{change['url']}</a></p>
+            <p style="margin: 0 0 5px; font-size: 14px; color: #555555;"><strong>变更时间:</strong> {change['timestamp']}</p>
+            <p style="margin: 0 0 15px; font-size: 14px; color: #555555;"><strong>查看快照:</strong> <a href="{change['snapshot_url']}" style="color: #007bff; text-decoration: none;">在 GitHub 上查看</a></p>
+            <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; font-family: 'Courier New', Courier, monospace; font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; border: 1px solid #dee2e6;">
+                <strong style="font-family: -apple-system, sans-serif; display: block; margin-bottom: 10px; font-size: 13px; color: #333;">变更内容:</strong>
+                {diff_html}
+            </div>
+        </div>
+        """
+        html_content_parts.append(part)
+    html_body_content = "".join(html_content_parts)
+
+    html_template = f"""
+    <!DOCTYPE html>
+    <html lang="zh-CN">
+    <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{subject}</title>
+    <style>
+      body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.6; color: #333333; background-color: #f4f4f4; margin: 0; padding: 0; }}
+      .container {{ max-width: 680px; margin: 20px auto; padding: 25px; border-radius: 8px; background-color: #ffffff; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
+      .header {{ font-size: 24px; font-weight: 600; color: #c9302c; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #eeeeee; text-align: center; }}
+      .footer {{ margin-top: 25px; font-size: 12px; text-align: center; color: #888888; }}
+    </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">网页变更监控提醒</div>
+        <div class="content">
+          {html_body_content}
+        </div>
+        <div class="footer">
+          <p>此邮件由 GitHub Actions 自动发送。</p>
+        </div>
+      </div>
+    </body>
+    </html>
+    """
+
+    # --- 组装邮件 ---
     message = MIMEMultipart("alternative")
-    # 使用 Header 类来正确编码包含非 ASCII 字符（如中文）的邮件主题
     message["Subject"] = Header(subject, 'utf-8')
     message["From"] = mail_from
-    message["To"] = ", ".join(recipients) # 显示所有收件人
+    message["To"] = ", ".join(recipients)
 
-    # 同时创建纯文本和HTML版本的邮件内容
-    part1 = MIMEText(body, "plain", "utf-8")
-    part2 = MIMEText(body.replace("\n", "<br>"), "html", "utf-8")
-    message.attach(part1)
-    message.attach(part2)
+    message.attach(MIMEText(plain_body, "plain", "utf-8"))
+    message.attach(MIMEText(html_template, "html", "utf-8"))
 
     try:
         context = ssl.create_default_context()
@@ -225,15 +282,15 @@ def main():
             )
             summary_parts.append(part)
         
-        summary = "\n\n".join(summary_parts)
+        summary_for_webhook = "\n\n".join(summary_parts)
         now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
         print("\n--- 变更摘要 ---")
-        print(summary)
+        print(summary_for_webhook)
         
         # 发送 Webhook
         webhook_urls = os.environ.get("WEBHOOK_URL")
-        send_webhook_notification(webhook_urls, now_str, summary)
+        send_webhook_notification(webhook_urls, now_str, summary_for_webhook)
         
         # --- 收集邮件收件人 ---
         recipients = []
@@ -252,12 +309,15 @@ def main():
 
         # 发送邮件
         email_subject = f"网页变更监控提醒 ({now_str})"
-        send_email_notification(email_subject, summary, unique_recipients)
+        send_email_notification(email_subject, all_changes, unique_recipients)
         
-        # 设置 GitHub Action 输出
+        # --- 设置 GitHub Action 输出 ---
+        now_for_commit = datetime.now().strftime('%Y-%m-%d %H:%M')
+        commit_message = f"【自动监控】网页内容发生变化 ({now_for_commit})"
         if 'GITHUB_OUTPUT' in os.environ:
             with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
                 f.write('changes_detected=true\n')
+                f.write(f'commit_message={commit_message}\n')
 
 # 脚本执行入口
 if __name__ == "__main__":
