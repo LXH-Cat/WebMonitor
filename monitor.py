@@ -80,7 +80,7 @@ def send_webhook_notification(webhook_urls_str, timestamp, summary):
             print(f"::error::发送 Webhook 通知至 {url} 失败: {e}")
 
 def send_email_notification(subject, changes_list, recipients):
-    """向多个收件人发送样式丰富的邮件通知"""
+    """向多个收件人单独发送邮件，保护隐私"""
     if not recipients:
         print("::notice::未配置任何邮件接收人，跳过邮件通知。")
         return
@@ -96,7 +96,7 @@ def send_email_notification(subject, changes_list, recipients):
         print("::notice::SMTP 服务器未完全配置，跳过邮件通知。")
         return
     
-    # --- 生成邮件内容 ---
+    # --- 生成邮件内容 (只需生成一次) ---
     # 1. 纯文本版本
     plain_text_parts = []
     for change in changes_list:
@@ -162,26 +162,32 @@ def send_email_notification(subject, changes_list, recipients):
     </html>
     """
 
-    # --- 组装邮件 ---
-    message = MIMEMultipart("alternative")
-    message["Subject"] = Header(subject, 'utf-8')
-    # 正确设置发件人：如果设置了昵称，则使用 "昵称 <邮箱>" 格式，否则直接使用邮箱
-    if sender_name:
-        message["From"] = formataddr((Header(sender_name, 'utf-8').encode(), mail_from))
-    else:
-        message["From"] = mail_from
-    # 正确设置收件人：直接使用逗号分隔的字符串，不再错误地编码
-    message["To"] = ", ".join(recipients)
-
-    message.attach(MIMEText(plain_body, "plain", "utf-8"))
-    message.attach(MIMEText(html_template, "html", "utf-8"))
-
     try:
         context = ssl.create_default_context()
         with smtplib.SMTP_SSL(smtp_host, int(smtp_port), context=context) as server:
             server.login(smtp_user, smtp_password)
-            server.sendmail(mail_from, recipients, message.as_string())
-            print(f"邮件通知发送成功，共 {len(recipients)} 个收件人。")
+            
+            # --- 循环为每个收件人单独发送邮件 ---
+            for recipient in recipients:
+                message = MIMEMultipart("alternative")
+                message["Subject"] = Header(subject, 'utf-8')
+                
+                # 正确设置发件人
+                if sender_name:
+                    message["From"] = formataddr((Header(sender_name, 'utf-8').encode(), mail_from))
+                else:
+                    message["From"] = mail_from
+                
+                # 正确设置收件人（仅当前循环的收件人）
+                message["To"] = recipient
+
+                message.attach(MIMEText(plain_body, "plain", "utf-8"))
+                message.attach(MIMEText(html_template, "html", "utf-8"))
+
+                server.sendmail(mail_from, [recipient], message.as_string())
+                print(f"邮件已发送至: {recipient}")
+
+            print(f"邮件通知流程完成，共成功发送给 {len(recipients)} 个收件人。")
     except Exception as e:
         print(f"::error::发送邮件失败: {e}")
 
