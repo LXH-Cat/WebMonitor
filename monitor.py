@@ -6,7 +6,7 @@ import difflib
 import json
 import smtplib
 import ssl
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from urllib.parse import urlparse
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -21,6 +21,8 @@ HEADERS = {
 TIMEOUT = 30
 # 通知中显示的最大差异行数
 MAX_DIFF_LINES = 30
+# 定义时区为 UTC+8
+CST_TZ = timezone(timedelta(hours=8))
 
 def get_safe_filename(url):
     """根据URL生成一个安全的文件名"""
@@ -234,8 +236,11 @@ def main():
             # 使用带标题的 notice 格式，在 Actions UI 中更清晰
             print(f"::notice title=检测到变化::{url}")
             
-            now = datetime.now()
-            timestamp_str = now.strftime("%Ym%d_%H%M%S")
+            # 获取当前UTC时间并转换为UTC+8
+            now = datetime.now(CST_TZ)
+            
+            # 使用 YYYYMMDD 格式
+            timestamp_str = now.strftime("%Y%m%d_%H%M%S")
             
             change_dir = os.path.join(url_dir, timestamp_str)
             os.makedirs(change_dir)
@@ -280,7 +285,7 @@ def main():
 
             change_info = {
                 "url": url,
-                "timestamp": now.strftime('%Y-%m-%d %H:%M:%S'),
+                "timestamp": now.strftime('%Y-%m-%d %H:%M:%S %Z'), # 添加时区信息
                 "snapshot_url": snapshot_url,
                 "diff": truncated_diff
             }
@@ -302,7 +307,10 @@ def main():
             summary_parts.append(part)
         
         summary_for_webhook = "\n\n".join(summary_parts)
-        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # 获取当前UTC+8时间用于通知
+        now_for_notification = datetime.now(CST_TZ)
+        now_str = now_for_notification.strftime('%Y-%m-%d %H:%M:%S %Z')
         
         print("\n--- 变更摘要 ---")
         print(summary_for_webhook)
@@ -331,7 +339,7 @@ def main():
         send_email_notification(email_subject, all_changes, unique_recipients)
         
         # --- 设置 GitHub Action 输出 ---
-        now_for_commit = datetime.now().strftime('%Y-%m-%d %H:%M')
+        now_for_commit = now_for_notification.strftime('%Y-%m-%d %H:%M')
         commit_message = f"【自动监控】网页内容发生变化 ({now_for_commit})"
         if 'GITHUB_OUTPUT' in os.environ:
             with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
