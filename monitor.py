@@ -6,6 +6,9 @@ import difflib
 import json
 import smtplib
 import ssl
+import yaml
+import subprocess
+import re
 from datetime import datetime, timezone, timedelta
 from urllib.parse import urlparse
 from email.mime.text import MIMEText
@@ -15,6 +18,7 @@ from email.utils import formataddr
 
 # --- 配置 ---
 SNAPSHOT_DIR = "snapshots"
+CONFIG_FILE = "config.yml"
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
 }
@@ -24,24 +28,56 @@ MAX_DIFF_LINES = 30
 # 定义时区为 UTC+8
 CST_TZ = timezone(timedelta(hours=8))
 
-def get_safe_filename(url):
+def get_safe_filename_from_url(url):
     """根据URL生成一个安全的文件名"""
-    parsed_url = urlparse(url)
-    filename = f"{parsed_url.netloc}{parsed_url.path.replace('/', '_')}"
-    safe_filename = "".join(c for c in filename if c.isalnum() or c in ('-', '_', '.')).rstrip()
-    if len(safe_filename) > 100:
-        return hashlib.md5(url.encode('utf-8')).hexdigest()
-    return safe_filename
+    if not url:
+        return None
+    try:
+        parsed_url = urlparse(url)
+        # 结合域名和路径，替换斜杠
+        filename = f"{parsed_url.netloc}{parsed_url.path.replace('/', '_')}"
+        # 清理文件名中的不安全字符
+        safe_filename = "".join(c for c in filename if c.isalnum() or c in ('-', '_', '.')).rstrip()
+        # 如果文件名过长，则使用其哈希值
+        if len(safe_filename) > 100:
+            return hashlib.md5(url.encode('utf-8')).hexdigest()
+        return safe_filename
+    except Exception as e:
+        print(f"::warning::从 URL '{url}' 生成文件名失败: {e}")
+        return None
 
-def fetch_content(url):
-    """获取网页内容"""
+def extract_url_from_curl(command):
+    """从 curl 命令中提取 URL"""
+    # 正则表达式，用于查找 http/https 格式的 URL
+    match = re.search(r'https?://[^\s\'"]+', command)
+    if match:
+        return match.group(0)
+    return None
+
+def fetch_content_from_url(url):
+    """从 URL 获取内容"""
     try:
         response = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
         response.raise_for_status()
         return response.content
     except requests.RequestException as e:
-        # 使用 warning 格式输出错误，使其在日志中更显眼
-        print(f"::warning::获取 {url} 出错: {e}")
+        print(f"::warning::获取 URL '{url}' 出错: {e}")
+        return None
+
+def fetch_content_from_curl(command):
+    """执行 curl 命令并获取其输出"""
+    try:
+        # 使用 shell=True 来执行完整的命令字符串
+        result = subprocess.run(command, shell=True, capture_output=True, text=True, check=True, timeout=TIMEOUT)
+        return result.stdout.encode('utf-8') # 哈希和保存需要 bytes
+    except subprocess.CalledProcessError as e:
+        print(f"::warning::执行 curl 命令失败。命令: [{command}], 错误: {e.stderr}")
+        return None
+    except subprocess.TimeoutExpired:
+        print(f"::warning::执行 curl 命令超时。命令: [{command}]")
+        return None
+    except Exception as e:
+        print(f"::error::执行 curl 命令时发生未知错误: {e}")
         return None
 
 def get_content_hash(content):
@@ -59,22 +95,11 @@ def send_webhook_notification(webhook_urls_str, timestamp, summary):
     for url in urls:
         try:
             if custom_payload_str:
-                # 优先使用用户自定义的 payload 模板
                 payload_str = custom_payload_str.replace("{timestamp}", timestamp).replace("{changes_summary}", summary)
                 payload = json.loads(payload_str)
             else:
-                # 默认生成企业微信兼容的 text 格式
-                text_content = (
-                    f"网页变更监控提醒\n"
-                    f"检测时间: {timestamp}\n\n"
-                    f"{summary}"
-                )
-                payload = {
-                    "msgtype": "text",
-                    "text": {
-                        "content": text_content
-                    }
-                }
+                text_content = (f"网页/API 变更监控提醒\n检测时间: {timestamp}\n\n{summary}")
+                payload = {"msgtype": "text", "text": {"content": text_content}}
             
             requests.post(url, json=payload, timeout=10)
             print(f"Webhook 通知已发送至: {url}")
@@ -99,26 +124,20 @@ def send_email_notification(subject, changes_list, recipients):
         return
     
     # --- 生成邮件内容 (只需生成一次) ---
-    # 1. 纯文本版本
     plain_text_parts = []
     for change in changes_list:
-        part = (
-            f"URL: {change['url']}\n"
-            f"变更时间: {change['timestamp']}\n"
-            f"查看快照: {change['snapshot_url']}\n\n"
-            f"变更内容:\n---\n{change['diff']}\n---"
-        )
+        display_name = f"{change['name']} ({change['url']})" if change.get('name') else change['url']
+        part = (f"监控目标: {display_name}\n变更时间: {change['timestamp']}\n查看快照: {change['snapshot_url']}\n\n变更内容:\n---\n{change['diff']}\n---")
         plain_text_parts.append(part)
     plain_body = "\n\n".join(plain_text_parts)
 
-    # 2. HTML 版本
     html_content_parts = []
     for change in changes_list:
-        # 将换行符转换成 <br> 并对特殊 HTML 字符进行转义
+        display_name = f"{change['name']} <span class='url-display'>({change['url']})</span>" if change.get('name') else f"<a href='{change['url']}' class='link'>{change['url']}</a>"
         diff_html = change['diff'].replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('\n', '<br>')
         part = f"""
         <div class="change-block">
-            <p><strong>URL:</strong> <a href="{change['url']}" class="link">{change['url']}</a></p>
+            <p><strong>监控目标:</strong> {display_name}</p>
             <p><strong>变更时间:</strong> {change['timestamp']}</p>
             <p><strong>查看快照:</strong> <a href="{change['snapshot_url']}" class="link">在 GitHub 上查看</a></p>
             <div class="diff-box">
@@ -131,64 +150,36 @@ def send_email_notification(subject, changes_list, recipients):
     html_body_content = "".join(html_content_parts)
 
     html_template = f"""
-    <!DOCTYPE html>
-    <html lang="zh-CN">
-    <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{subject}</title>
-    <style>
+    <!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><title>{subject}</title><style>
       body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.6; color: #333333; background-color: #f7f8fa; margin: 0; padding: 0; }}
       .container {{ max-width: 680px; margin: 20px auto; padding: 30px; border-radius: 8px; background-color: #ffffff; border: 1px solid #e9e9e9; }}
       .header {{ font-size: 24px; font-weight: 600; color: #2c3e50; margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #eeeeee; text-align: center; }}
       .change-block {{ margin-bottom: 25px; padding: 20px; border-radius: 6px; border: 1px solid #dfe6e9; border-left: 4px solid #3498db; }}
       .change-block p {{ margin: 0 0 8px; font-size: 14px; color: #555555; }}
-      .link {{ color: #3498db; text-decoration: none; }}
-      .link:hover {{ text-decoration: underline; }}
+      .link {{ color: #3498db; text-decoration: none; }}.link:hover {{ text-decoration: underline; }}
+      .url-display {{ color: #7f8c8d; }}
       .diff-box {{ background-color: #fdfdfd; padding: 15px; margin-top: 15px; border-radius: 5px; font-family: 'Courier New', Courier, monospace; font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; border: 1px solid #f0f0f0; }}
       .diff-title {{ font-family: -apple-system, sans-serif; display: block; margin-bottom: 10px; font-size: 13px; color: #333; font-weight: 600; }}
       .footer {{ margin-top: 30px; font-size: 12px; text-align: center; color: #999999; }}
-    </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">网页变更监控提醒</div>
-        <div class="content">
-          {html_body_content}
-        </div>
-        <div class="footer">
-          <p>此邮件由 GitHub Actions 自动发送。</p>
-        </div>
-      </div>
-    </body>
-    </html>
+    </style></head><body><div class="container"><div class="header">网页/API 变更监控提醒</div><div class="content">{html_body_content}</div><div class="footer"><p>此邮件由 GitHub Actions 自动发送。</p></div></div></body></html>
     """
 
     try:
         context = ssl.create_default_context()
         with smtplib.SMTP_SSL(smtp_host, int(smtp_port), context=context) as server:
             server.login(smtp_user, smtp_password)
-            
-            # --- 循环为每个收件人单独发送邮件 ---
             for recipient in recipients:
                 message = MIMEMultipart("alternative")
                 message["Subject"] = Header(subject, 'utf-8')
-                
-                # 正确设置发件人
                 if sender_name:
                     message["From"] = formataddr((Header(sender_name, 'utf-8').encode(), mail_from))
                 else:
                     message["From"] = mail_from
-                
-                # 正确设置收件人（仅当前循环的收件人）
                 message["To"] = recipient
-
                 message.attach(MIMEText(plain_body, "plain", "utf-8"))
                 message.attach(MIMEText(html_template, "html", "utf-8"))
-
                 server.sendmail(mail_from, [recipient], message.as_string())
                 print(f"邮件已发送至: {recipient}")
-
             print(f"邮件通知流程完成，共成功发送给 {len(recipients)} 个收件人。")
     except Exception as e:
         print(f"::error::发送邮件失败: {e}")
@@ -203,29 +194,63 @@ def main():
         os.makedirs(SNAPSHOT_DIR)
 
     try:
-        with open("urls.txt", "r", encoding="utf-8") as f:
-            urls = [line.strip() for line in f if line.strip()]
+        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+            targets = config.get("targets", [])
     except FileNotFoundError:
-        print("::error::错误: 未找到 urls.txt 文件。")
+        print(f"::error::错误: 未找到配置文件 {CONFIG_FILE}。")
+        sys.exit(1)
+    except yaml.YAMLError as e:
+        print(f"::error::错误: 配置文件 {CONFIG_FILE} 格式不正确: {e}")
         sys.exit(1)
 
     all_changes = []
 
-    for url in urls:
-        print(f"正在检查 {url}...")
-        safe_name = get_safe_filename(url)
-        url_dir = os.path.join(SNAPSHOT_DIR, safe_name)
+    for target in targets:
+        name = target.get("name") # name 是可选的
+        type = target.get("type")
         
+        # --- 确定 URL 和内容获取方式 ---
+        target_url = None
+        content = None
+        if type == "url":
+            target_url = target.get("value")
+            if not target_url:
+                print(f"::warning::类型为 'url' 的目标缺少 'value' 字段，已跳过。")
+                continue
+            content = fetch_content_from_url(target_url)
+        elif type == "curl":
+            command = target.get("command")
+            if not command:
+                print(f"::warning::类型为 'curl' 的目标缺少 'command' 字段，已跳过。")
+                continue
+            target_url = extract_url_from_curl(command)
+            if not target_url:
+                print(f"::error::无法从 curl 命令中解析出 URL，请检查命令: [{command}]")
+                continue
+            content = fetch_content_from_curl(command)
+        else:
+            print(f"::warning::不支持的类型 '{type}'，目标 '{name or '未命名'}' 已跳过。")
+            continue
+
+        if content is None:
+            continue
+        
+        # --- 统一使用 URL 命名文件夹 ---
+        safe_name = get_safe_filename_from_url(target_url)
+        if not safe_name:
+            print(f"::warning::无法为 URL '{target_url}' 生成文件夹名，已跳过。")
+            continue
+
+        display_name = name or target_url
+        print(f"正在检查 '{display_name}'...")
+
+        url_dir = os.path.join(SNAPSHOT_DIR, safe_name)
         if not os.path.exists(url_dir):
             os.makedirs(url_dir)
 
         latest_hash_file = os.path.join(url_dir, "latest.hash")
-        
-        current_content = fetch_content(url)
-        if current_content is None:
-            continue
-        
-        current_hash = get_content_hash(current_content)
+        current_hash = get_content_hash(content)
         
         last_hash = None
         if os.path.exists(latest_hash_file):
@@ -233,30 +258,31 @@ def main():
                 last_hash = f.read().strip()
 
         if current_hash != last_hash:
-            # 使用带标题的 notice 格式，在 Actions UI 中更清晰
-            print(f"::notice title=检测到变化::{url}")
+            print(f"::notice title=检测到变化::{display_name}")
             
-            # 获取当前UTC时间并转换为UTC+8
             now = datetime.now(CST_TZ)
-            
-            # 使用 YYYYMMDD 格式
             timestamp_str = now.strftime("%Y%m%d_%H%M%S")
-            
             change_dir = os.path.join(url_dir, timestamp_str)
             os.makedirs(change_dir)
             
-            new_snapshot_file = os.path.join(change_dir, "snapshot.html")
+            snapshot_filename = "response.json" if type == "curl" else "snapshot.html"
+            new_snapshot_file = os.path.join(change_dir, snapshot_filename)
             with open(new_snapshot_file, "wb") as f:
-                f.write(current_content)
+                f.write(content)
             
-            diff_report_content = "新页面，无历史版本可比较。"
+            diff_report_content = "新目标，无历史版本可比较。"
             if last_hash:
                 history_dirs = sorted([d for d in os.listdir(url_dir) if os.path.isdir(os.path.join(url_dir, d)) and d != timestamp_str])
                 if history_dirs:
                     last_snapshot_dir = os.path.join(url_dir, history_dirs[-1])
-                    last_snapshot_file = os.path.join(last_snapshot_dir, "snapshot.html")
-                    if os.path.exists(last_snapshot_file):
-                        with open(last_snapshot_file, "r", encoding='utf-8', errors='ignore') as f_old:
+                    last_snapshot_path = None
+                    for f_name in os.listdir(last_snapshot_dir):
+                        if f_name.startswith("snapshot.") or f_name.startswith("response."):
+                            last_snapshot_path = os.path.join(last_snapshot_dir, f_name)
+                            break
+                    
+                    if last_snapshot_path and os.path.exists(last_snapshot_path):
+                        with open(last_snapshot_path, "r", encoding='utf-8', errors='ignore') as f_old:
                             old_lines = f_old.readlines()
                         with open(new_snapshot_file, "r", encoding='utf-8', errors='ignore') as f_new:
                             new_lines = f_new.readlines()
@@ -270,82 +296,55 @@ def main():
             with open(latest_hash_file, "w", encoding="utf-8") as f:
                 f.write(current_hash)
             
-            # 为通知准备结构化信息
             snapshot_url = ""
             if repo_full_name:
-                # 假设默认分支为 main，可以根据需要修改
-                snapshot_url = f"https://github.com/{repo_full_name}/tree/main/{change_dir}"
+                snapshot_url = f"https://github.com/{repo_full_name}/tree/main/{change_dir.replace(os.sep, '/')}"
             
-            # 截断过长的差异内容
             diff_lines = diff_report_content.split('\n')
+            truncated_diff = '\n'.join(diff_lines[:MAX_DIFF_LINES])
             if len(diff_lines) > MAX_DIFF_LINES:
-                truncated_diff = '\n'.join(diff_lines[:MAX_DIFF_LINES]) + "\n... (内容已截断，请查看快照链接获取完整差异)"
-            else:
-                truncated_diff = diff_report_content
+                truncated_diff += "\n... (内容已截断，请查看快照链接获取完整差异)"
 
-            change_info = {
-                "url": url,
-                "timestamp": now.strftime('%Y-%m-%d %H:%M:%S %Z'), # 添加时区信息
-                "snapshot_url": snapshot_url,
-                "diff": truncated_diff
-            }
-            all_changes.append(change_info)
+            all_changes.append({
+                "name": name, "url": target_url,
+                "timestamp": now.strftime('%Y-%m-%d %H:%M:%S %Z'),
+                "snapshot_url": snapshot_url, "diff": truncated_diff
+            })
         else:
-            # 使用 notice 格式输出无变化的信息
-            print(f"::notice title=无变化::{url}")
+            print(f"::notice title=无变化::{display_name}")
 
     if all_changes:
-        # --- 汇总并发送通知 ---
         summary_parts = []
         for change in all_changes:
-            part = (
-                f"URL: {change['url']}\n"
-                f"变更时间: {change['timestamp']}\n"
-                f"查看快照: {change['snapshot_url']}\n\n"
-                f"变更内容:\n---\n{change['diff']}\n---"
-            )
+            display_name = f"{change['name']} ({change['url']})" if change.get('name') else change['url']
+            part = (f"监控目标: {display_name}\n变更时间: {change['timestamp']}\n查看快照: {change['snapshot_url']}\n\n变更内容:\n---\n{change['diff']}\n---")
             summary_parts.append(part)
         
         summary_for_webhook = "\n\n".join(summary_parts)
-        
-        # 获取当前UTC+8时间用于通知
         now_for_notification = datetime.now(CST_TZ)
         now_str = now_for_notification.strftime('%Y-%m-%d %H:%M:%S %Z')
         
         print("\n--- 变更摘要 ---")
         print(summary_for_webhook)
         
-        # 发送 Webhook
         webhook_urls = os.environ.get("WEBHOOK_URL")
         send_webhook_notification(webhook_urls, now_str, summary_for_webhook)
         
-        # --- 收集邮件收件人 ---
         recipients = []
-        # 1. 从 Secret `MAIL_TO` 读取 (兼容旧版, 已不推荐)
-        mail_to_secret = os.environ.get("MAIL_TO")
-        if mail_to_secret:
-            recipients.extend([email.strip() for email in mail_to_secret.split(',') if email.strip()])
-        
-        # 2. 从 Variable `MAIL_RECIPIENTS` 读取 (推荐方式)
         mail_recipients_var = os.environ.get("MAIL_RECIPIENTS")
         if mail_recipients_var:
             recipients.extend([email.strip() for email in mail_recipients_var.split(',') if email.strip()])
-        
-        # 去除重复的邮箱地址
         unique_recipients = sorted(list(set(recipients)))
 
-        # 发送邮件
-        email_subject = f"网页变更监控提醒 ({now_str})"
+        email_subject = f"网页/API 变更监控提醒 ({now_str})"
         send_email_notification(email_subject, all_changes, unique_recipients)
         
-        # --- 设置 GitHub Action 输出 ---
         now_for_commit = now_for_notification.strftime('%Y-%m-%d %H:%M')
-        commit_message = f"【自动监控】网页内容发生变化 ({now_for_commit})"
+        commit_message = f"【自动监控】内容发生变化 ({now_for_commit})"
         if 'GITHUB_OUTPUT' in os.environ:
             with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
                 f.write('changes_detected=true\n')
                 f.write(f'commit_message={commit_message}\n')
 
-# 脚本执行入口
 if __name__ == "__main__":
     main()

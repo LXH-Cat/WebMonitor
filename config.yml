@@ -1,0 +1,18 @@
+# 监控目标列表
+targets:
+  # --- 类型 1: 监控普通网页 URL ---
+  - name: "GitHub 状态页" # 提供 name 作为备注
+    type: "url"
+    value: "https://www.githubstatus.com/"
+
+  - type: "url" # 不提供 name，将直接使用 URL 作为标识
+    value: "https://www.v2ex.com"
+
+  # --- 类型 2: 监控 API (使用 curl 命令) ---
+  - name: "获取公网 IP (GET)" # 提供 name 作为备注
+    type: "curl"
+    command: "curl -s https://api.ipify.org"
+
+  - type: "curl" # 不提供 name，将直接使用解析出的 URL 作为标识
+    command: "curl -s -X POST https://httpbin.org/post -H 'Content-Type: application/json' -d '{\"id\": 123, \"name\": \"test\"}'"
+
