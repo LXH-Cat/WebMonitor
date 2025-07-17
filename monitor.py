@@ -47,11 +47,11 @@ def get_safe_filename_from_url(url):
         return None
 
 def extract_url_from_curl(command):
-    """从 curl 命令中提取 URL"""
-    # 正则表达式，用于查找 http/https 格式的 URL
-    match = re.search(r'https?://[^\s\'"]+', command)
-    if match:
-        return match.group(0)
+    """从 curl 命令中提取主要的目标 URL (通常是第一个)"""
+    urls = re.findall(r'https?://[^\s\'"]+', command)
+    if urls:
+        # 返回第一个匹配到的 URL，这通常是主请求的目标
+        return urls[0]
     return None
 
 def fetch_content_from_url(url):
