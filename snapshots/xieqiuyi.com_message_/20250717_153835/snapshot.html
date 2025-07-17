@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>留言-0100</title>
+    <style>
+        body, html {
+            height: 100%;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: black;
+            color: white;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            position: relative;
+        }
+        .container {
+            width: 80%;
+            max-width: 500px;
+        }
+        form {
+            background-color: black;
+            border: 2px solid white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+            margin-top: 20px;
+        }
+        textarea {
+            width: calc(100% - 24px);
+            padding: 10px;
+            margin: 10px 0;
+            border: 2px solid white;
+            border-radius: 5px;
+            background-color: black;
+            color: white;
+            font-size: 16px;
+            resize: none;
+            overflow: hidden;
+        }
+        button, .action-button {
+            width: 100%;
+            padding: 10px;
+            background-color: black;
+            color: white;
+            border: 2px solid white;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover, .action-button:hover {
+            background-color: white;
+            color: black;
+        }
+        .modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: black;
+            color: white;
+            border: 2px solid white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+            z-index: 1000;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>留言-0100</h1>
+        <h2>请输入你的留言</h2>
+        <label for="title">请认真填写内容，此留言只可在“2024生日解密”期间留言一次  </label>
+        <div>   <div>
+        <label for="title">  无任何特殊回复，这是你最后一次与自由的以自己的口吻来进行留言/通信，来创建最后的留言-0100（这会对后续的剧情产生影响），最后的这封信是送给你的。</label>
+         <div>
+                <label for="title">重要通知：请于2025.12.31日13：00前填写完毕”留言-0100“  </label>
+        <form id="submitForm">
+            <label for="title">标题（最多50字）：</label>
+            <textarea id="title" name="title" maxlength="50" required></textarea><br>
+
+            <label for="name">名字（最多20字）：</label>
+            <textarea id="name" name="name" maxlength="20" required></textarea><br>
+
+            <label for="content">内容（最多500字）：</label>
+            <textarea id="content" name="content" maxlength="500" required></textarea><br>
+
+            <div>
+                <label>选择操作：</label><br>
+                <input type="radio" id="shutdown" name="action" value="关机" required>
+                <label for="shutdown">关机</label><br>
+                <input type="radio" id="restart" name="action" value="重启">
+                <label for="restart">重启</label><br>
+                <input type="radio" id="wake" name="action" value="强制唤醒">
+                <label for="wake">强制唤醒</label><br>
+            </div>
+
+            <button type="submit">提交</button>
+        </form>
+    </div>
+
+    <div id="modal" class="modal">
+        <p id="modalMessage"></p>
+        <button id="modalButton">确定</button>
+    </div>
+    <label for="title">为了您可以顺利领取奖品，请尽量确保在此提交信息时与您在“信息提交表单”界面提交相同名字/进行实时对话时的网络环境（IP）相同。</label>
+    <script>
+        function adjustTextareaHeight(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = (textarea.scrollHeight) + 'px';
+        }
+
+        document.querySelectorAll('textarea').forEach(textarea => {
+            textarea.addEventListener('input', function() {
+                adjustTextareaHeight(this);
+            });
+            adjustTextareaHeight(textarea); // 初始化高度
+        });
+
+        function showModal(message) {
+            const modal = document.getElementById('modal');
+            const modalMessage = document.getElementById('modalMessage');
+            modalMessage.textContent = message;
+            modal.style.display = 'block';
+        }
+
+        document.getElementById('modalButton').addEventListener('click', function() {
+            const modal = document.getElementById('modal');
+            modal.style.display = 'none';
+        });
+
+        document.getElementById('submitForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+
+            const content = document.getElementById('content').value;
+            const name = document.getElementById('name').value;
+            const title = document.getElementById('title').value;
+            const action = document.querySelector('input[name="action"]:checked');
+
+            if (!action) {
+                showModal('请选择一个操作。');
+                return;
+            }
+
+            fetch('submit', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ content, name, title, action: action.value })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(data => { throw new Error(data.message); });
+                }
+                return response.blob();
+            })
+            .then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `to 167.txt`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(url);
+                showModal('文件已成功下载！');
+            })
+            .catch(error => showModal(error.message));
+        });
+    </script>
+</body>
+</html>
