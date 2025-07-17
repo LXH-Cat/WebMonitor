@@ -1,18 +1,37 @@
-# 监控目标列表
 targets:
-  # --- 类型 1: 监控普通网页 URL ---
-  - name: "GitHub 状态页" # 提供 name 作为备注
-    type: "url"
-    value: "https://www.githubstatus.com/"
+  - type: "url"
+    value: "https://xieqiuyi.com/XIX/user"
 
-  - type: "url" # 不提供 name，将直接使用 URL 作为标识
-    value: "https://www.v2ex.com"
+  - type: "url"
+    value: "https://xieqiuyi.com/live/preview"
 
-  # --- 类型 2: 监控 API (使用 curl 命令) ---
-  - name: "获取公网 IP (GET)" # 提供 name 作为备注
-    type: "curl"
-    command: "curl -s https://api.ipify.org"
+  - type: "curl"
+    command: |
+      curl -X GET \
+        "https://xieqiuyi.com/live/messages" \
+        -H "User-Agent: Preview" \
+        -H "Referer: https://xieqiuyi.com/live/preview"
 
-  - type: "curl" # 不提供 name，将直接使用解析出的 URL 作为标识
-    command: "curl -s -X POST https://httpbin.org/post -H 'Content-Type: application/json' -d '{\"id\": 123, \"name\": \"test\"}'"
+  - type: "url"
+    value: "https://xieqiuyi.com/XIX/admin"
 
+  - type: "url"
+    value: "https://xieqiuyi.com/XIX/get-settings"
+
+  - type: "url"
+    value: "https://xieqiuyi.com/EXIT"
+
+  - type: "url"
+    value: "https://xieqiuyi.com/activity/"
+
+  - type: "url"
+    value: "https://xieqiuyi.com/34/"
+
+  - type: "url"
+    value: "https://xieqiuyi.com/Speak/"
+
+  - type: "url"
+    value: "https://xieqiuyi.com/live/user"
+
+  - type: "url"
+    value: "https://xieqiuyi.com/message/"
