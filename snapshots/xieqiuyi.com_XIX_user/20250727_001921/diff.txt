@@ -1,0 +1,52 @@
+--- old
++++ new
+@@ -30,7 +30,7 @@
+     
+
+     <div class="input-groups">
+
+       <div class="group">
+
+-        <div class="group-label">2:57(00XX)</div>
+
++        <div class="group-label">2:57(00XX)（Video frames）</div>
+
+         <div class="input-row" id="group1">
+
+           <div class="input-cell"><input type="text" maxlength="1" class="digit-input" data-group="1" data-index="1"></div>
+
+           <div class="input-cell"><input type="text" maxlength="1" class="digit-input" data-group="1" data-index="2"></div>
+
+@@ -40,7 +40,7 @@
+       </div>
+
+       
+
+       <div class="group">
+
+-        <div class="group-label">0000</div>
+
++        <div class="group-label">00:04（Video frames）</div>
+
+         <div class="input-row" id="group2">
+
+           <div class="input-cell"><input type="text" maxlength="1" class="digit-input" data-group="2" data-index="1"></div>
+
+           <div class="input-cell"><input type="text" maxlength="1" class="digit-input" data-group="2" data-index="2"></div>
+
+@@ -50,7 +50,7 @@
+       </div>
+
+       
+
+       <div class="group">
+
+-        <div class="group-label" id="group3-label">0000</div>
+
++        <div class="group-label" id="group3-label">time</div>
+
+         <div class="input-row" id="group3">
+
+           <div class="input-cell"><input type="text" maxlength="1" class="digit-input" data-group="3" data-index="1"></div>
+
+           <div class="input-cell"><input type="text" maxlength="1" class="digit-input" data-group="3" data-index="2"></div>
