@@ -6,6 +6,11 @@ on:
   schedule:
     - cron: '0 */2 * * *'
   
+  # 推送时触发：修改 config.yml 配置文件时触发该工作流
+  push:
+    paths:
+      - 'config.yml'
+
   # 手动触发：允许你在 GitHub Actions 页面手动运行此工作流
   workflow_dispatch:
 
