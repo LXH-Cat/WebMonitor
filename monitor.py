@@ -55,30 +55,42 @@ def extract_url_from_curl(command):
     return None
 
 def fetch_content_from_url(url):
-    """从 URL 获取内容"""
+    """从 URL 获取内容, 将 HTTP 错误视为一种内容状态"""
     try:
         response = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
-        response.raise_for_status()
-        return response.content
+        # 不再使用 response.raise_for_status()
+        if response.ok: # 检查状态码是否为 2xx
+            return response.content
+        else:
+            # 如果是 4xx 或 5xx 错误，我们将其视为一种"状态"，但不保存页面内容
+            # 返回一个独特的字符串来代表这个状态
+            error_state_content = f"HTTP Error: {response.status_code} {response.reason}"
+            return error_state_content.encode('utf-8')
     except requests.RequestException as e:
+        # 对于连接错误等，也视为一种状态
         print(f"::warning::获取 URL '{url}' 出错: {e}")
-        return None
+        error_state_content = f"Connection Error: {type(e).__name__}"
+        return error_state_content.encode('utf-8')
 
 def fetch_content_from_curl(command):
-    """执行 curl 命令并获取其输出"""
+    """执行 curl 命令并获取其输出, 将命令失败视为一种内容状态"""
     try:
         # 使用 shell=True 来执行完整的命令字符串
         result = subprocess.run(command, shell=True, capture_output=True, text=True, check=True, timeout=TIMEOUT)
         return result.stdout.encode('utf-8') # 哈希和保存需要 bytes
     except subprocess.CalledProcessError as e:
         print(f"::warning::执行 curl 命令失败。命令: [{command}], 错误: {e.stderr}")
-        return None
+        # 将命令执行失败视为一种状态
+        error_state_content = f"cURL Command Failed with Exit Code {e.returncode}\nError: {e.stderr.strip()}"
+        return error_state_content.encode('utf-8')
     except subprocess.TimeoutExpired:
         print(f"::warning::执行 curl 命令超时。命令: [{command}]")
-        return None
+        error_state_content = f"cURL Command Timed Out"
+        return error_state_content.encode('utf-8')
     except Exception as e:
         print(f"::error::执行 curl 命令时发生未知错误: {e}")
-        return None
+        error_state_content = f"Unknown cURL Error: {type(e).__name__}"
+        return error_state_content.encode('utf-8')
 
 def get_content_hash(content):
     """计算内容的SHA-256哈希值"""
@@ -234,6 +246,9 @@ def main():
             continue
 
         if content is None:
+            # fetch_... 函数现在会返回错误信息的 bytes，所以这里不再需要检查 None
+            # 但保留以防未来有其他返回 None 的情况
+            print(f"::warning::无法获取目标 '{name or target_url}' 的内容，已跳过。")
             continue
         
         # --- 统一使用 URL 命名文件夹 ---
@@ -265,7 +280,7 @@ def main():
             change_dir = os.path.join(url_dir, timestamp_str)
             os.makedirs(change_dir)
             
-            snapshot_filename = "response.json" if type == "curl" else "snapshot.html"
+            snapshot_filename = "response.txt" # 统一用 txt 保存，因为内容可能是错误信息
             new_snapshot_file = os.path.join(change_dir, snapshot_filename)
             with open(new_snapshot_file, "wb") as f:
                 f.write(content)
@@ -276,14 +291,15 @@ def main():
                 if history_dirs:
                     last_snapshot_dir = os.path.join(url_dir, history_dirs[-1])
                     last_snapshot_path = None
-                    for f_name in os.listdir(last_snapshot_dir):
-                        if f_name.startswith("snapshot.") or f_name.startswith("response."):
-                            last_snapshot_path = os.path.join(last_snapshot_dir, f_name)
-                            break
+                    # 寻找上一个快照文件，现在统一为 response.txt
+                    potential_file = os.path.join(last_snapshot_dir, "response.txt")
+                    if os.path.exists(potential_file):
+                        last_snapshot_path = potential_file
                     
-                    if last_snapshot_path and os.path.exists(last_snapshot_path):
+                    if last_snapshot_path:
                         with open(last_snapshot_path, "r", encoding='utf-8', errors='ignore') as f_old:
                             old_lines = f_old.readlines()
+                        # 新文件也可能是错误信息文本，所以用同样的方式读取
                         with open(new_snapshot_file, "r", encoding='utf-8', errors='ignore') as f_new:
                             new_lines = f_new.readlines()
                         diff = difflib.unified_diff(old_lines, new_lines, fromfile='old', tofile='new', lineterm='')
