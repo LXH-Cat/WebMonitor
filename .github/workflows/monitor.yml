@@ -4,7 +4,7 @@ name: Website Change Monitor
 on:
   # 定时触发：使用 cron 语法，默认为 UTC+8 时区的 00:00, 06:00, 12:00, 18:00
   schedule:
-    - cron: '0 */2 * * *'
+    - cron: '0 */1 * * *'
   
   # 推送时触发：修改 config.yml 配置文件时触发该工作流
   push:
