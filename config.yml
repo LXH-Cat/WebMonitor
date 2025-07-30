@@ -19,6 +19,12 @@ targets:
         -H "Referer: https://xieqiuyi.com/live/preview"
 
   - type: "url"
+    value: "https://xieqiuyi.com/live/preview-status"
+
+  - type: "url"
+    value: "https://xieqiuyi.com/live/user"
+
+  - type: "url"
     value: "https://xieqiuyi.com/XIX/admin"
 
   - type: "url"
@@ -35,9 +41,6 @@ targets:
 
   - type: "url"
     value: "https://xieqiuyi.com/Speak/"
-
-  - type: "url"
-    value: "https://xieqiuyi.com/live/user"
 
   - type: "url"
     value: "https://xieqiuyi.com/message/"
