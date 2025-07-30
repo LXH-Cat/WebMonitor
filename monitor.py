@@ -60,37 +60,36 @@ def fetch_content_from_url(url):
         response = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
         # 不再使用 response.raise_for_status()
         if response.ok: # 检查状态码是否为 2xx
-            return response.content
+            return response.content, False # content, is_error
         else:
-            # 如果是 4xx 或 5xx 错误，我们将其视为一种"状态"，但不保存页面内容
-            # 返回一个独特的字符串来代表这个状态
+            # 如果是 4xx 或 5xx 错误，我们将其视为一种"状态"
             error_state_content = f"HTTP Error: {response.status_code} {response.reason}"
-            return error_state_content.encode('utf-8')
+            return error_state_content.encode('utf-8'), True
     except requests.RequestException as e:
         # 对于连接错误等，也视为一种状态
         print(f"::warning::获取 URL '{url}' 出错: {e}")
         error_state_content = f"Connection Error: {type(e).__name__}"
-        return error_state_content.encode('utf-8')
+        return error_state_content.encode('utf-8'), True
 
 def fetch_content_from_curl(command):
     """执行 curl 命令并获取其输出, 将命令失败视为一种内容状态"""
     try:
         # 使用 shell=True 来执行完整的命令字符串
         result = subprocess.run(command, shell=True, capture_output=True, text=True, check=True, timeout=TIMEOUT)
-        return result.stdout.encode('utf-8') # 哈希和保存需要 bytes
+        return result.stdout.encode('utf-8'), False # content, is_error
     except subprocess.CalledProcessError as e:
         print(f"::warning::执行 curl 命令失败。命令: [{command}], 错误: {e.stderr}")
         # 将命令执行失败视为一种状态
         error_state_content = f"cURL Command Failed with Exit Code {e.returncode}\nError: {e.stderr.strip()}"
-        return error_state_content.encode('utf-8')
+        return error_state_content.encode('utf-8'), True
     except subprocess.TimeoutExpired:
         print(f"::warning::执行 curl 命令超时。命令: [{command}]")
         error_state_content = f"cURL Command Timed Out"
-        return error_state_content.encode('utf-8')
+        return error_state_content.encode('utf-8'), True
     except Exception as e:
         print(f"::error::执行 curl 命令时发生未知错误: {e}")
         error_state_content = f"Unknown cURL Error: {type(e).__name__}"
-        return error_state_content.encode('utf-8')
+        return error_state_content.encode('utf-8'), True
 
 def get_content_hash(content):
     """计算内容的SHA-256哈希值"""
@@ -225,12 +224,13 @@ def main():
         # --- 确定 URL 和内容获取方式 ---
         target_url = None
         content = None
+        is_error = False
         if type == "url":
             target_url = target.get("value")
             if not target_url:
                 print(f"::warning::类型为 'url' 的目标缺少 'value' 字段，已跳过。")
                 continue
-            content = fetch_content_from_url(target_url)
+            content, is_error = fetch_content_from_url(target_url)
         elif type == "curl":
             command = target.get("command")
             if not command:
@@ -240,15 +240,9 @@ def main():
             if not target_url:
                 print(f"::error::无法从 curl 命令中解析出 URL，请检查命令: [{command}]")
                 continue
-            content = fetch_content_from_curl(command)
+            content, is_error = fetch_content_from_curl(command)
         else:
             print(f"::warning::不支持的类型 '{type}'，目标 '{name or '未命名'}' 已跳过。")
-            continue
-
-        if content is None:
-            # fetch_... 函数现在会返回错误信息的 bytes，所以这里不再需要检查 None
-            # 但保留以防未来有其他返回 None 的情况
-            print(f"::warning::无法获取目标 '{name or target_url}' 的内容，已跳过。")
             continue
         
         # --- 统一使用 URL 命名文件夹 ---
@@ -280,7 +274,14 @@ def main():
             change_dir = os.path.join(url_dir, timestamp_str)
             os.makedirs(change_dir)
             
-            snapshot_filename = "response.txt" # 统一用 txt 保存，因为内容可能是错误信息
+            # 根据内容类型决定快照文件名
+            if is_error:
+                snapshot_filename = "error.txt"
+            elif type == "url":
+                snapshot_filename = "snapshot.html"
+            else: # curl
+                snapshot_filename = "response.txt"
+            
             new_snapshot_file = os.path.join(change_dir, snapshot_filename)
             with open(new_snapshot_file, "wb") as f:
                 f.write(content)
@@ -291,12 +292,14 @@ def main():
                 if history_dirs:
                     last_snapshot_dir = os.path.join(url_dir, history_dirs[-1])
                     last_snapshot_path = None
-                    # 寻找上一个快照文件，现在统一为 response.txt
-                    potential_file = os.path.join(last_snapshot_dir, "response.txt")
-                    if os.path.exists(potential_file):
-                        last_snapshot_path = potential_file
+                    # 寻找上一个快照文件，无论其名称是什么
+                    possible_filenames = ["snapshot.html", "response.txt", "error.txt"]
+                    for f_name in os.listdir(last_snapshot_dir):
+                        if f_name in possible_filenames:
+                            last_snapshot_path = os.path.join(last_snapshot_dir, f_name)
+                            break
                     
-                    if last_snapshot_path:
+                    if last_snapshot_path and os.path.exists(last_snapshot_path):
                         with open(last_snapshot_path, "r", encoding='utf-8', errors='ignore') as f_old:
                             old_lines = f_old.readlines()
                         # 新文件也可能是错误信息文本，所以用同样的方式读取
