@@ -1,3 +1,8 @@
+# 全局配置
+settings:
+  # 每封邮件之间的发送延迟（毫秒），以避免超出频率限制。默认为 1000 毫秒。
+  email_delay_milliseconds: 1000
+
 # 监控目标列表
 targets:
   # --- 类型 1: 监控普通网页 URL ---
@@ -13,6 +18,11 @@ targets:
     type: "curl"
     command: "curl -s https://api.ipify.org"
 
-  - type: "curl" # 不提供 name，将直接使用解析出的 URL 作为标识
-    command: "curl -s -X POST https://httpbin.org/post -H 'Content-Type: application/json' -d '{\"id\": 123, \"name\": \"test\"}'"
-
+  # 对于复杂的 curl 命令，强烈推荐使用 `|` 块样式
+  - name: "复杂的 POST 请求"
+    type: "curl"
+    command: |
+      curl -s -X POST https://httpbin.org/post \
+        -H 'Content-Type: application/json' \
+        -H 'Referer: https://www.example.com/some-page' \
+        -d '{"id": 123, "name": "test"}'

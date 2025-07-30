@@ -9,6 +9,7 @@ import ssl
 import yaml
 import subprocess
 import re
+import time
 from datetime import datetime, timezone, timedelta
 from urllib.parse import urlparse
 from email.mime.text import MIMEText
@@ -117,7 +118,7 @@ def send_webhook_notification(webhook_urls_str, timestamp, summary):
         except Exception as e:
             print(f"::error::发送 Webhook 通知至 {url} 失败: {e}")
 
-def send_email_notification(subject, changes_list, recipients):
+def send_email_notification(subject, changes_list, recipients, delay_milliseconds):
     """向多个收件人单独发送邮件，保护隐私"""
     if not recipients:
         print("::notice::未配置任何邮件接收人，跳过邮件通知。")
@@ -179,18 +180,33 @@ def send_email_notification(subject, changes_list, recipients):
         context = ssl.create_default_context()
         with smtplib.SMTP_SSL(smtp_host, int(smtp_port), context=context) as server:
             server.login(smtp_user, smtp_password)
-            for recipient in recipients:
+            
+            # --- 循环为每个收件人单独发送邮件 ---
+            for i, recipient in enumerate(recipients):
                 message = MIMEMultipart("alternative")
                 message["Subject"] = Header(subject, 'utf-8')
+                
+                # 正确设置发件人
                 if sender_name:
                     message["From"] = formataddr((Header(sender_name, 'utf-8').encode(), mail_from))
                 else:
                     message["From"] = mail_from
+                
+                # 正确设置收件人（仅当前循环的收件人）
                 message["To"] = recipient
+
                 message.attach(MIMEText(plain_body, "plain", "utf-8"))
                 message.attach(MIMEText(html_template, "html", "utf-8"))
+
                 server.sendmail(mail_from, [recipient], message.as_string())
                 print(f"邮件已发送至: {recipient}")
+                
+                # 如果不是最后一个收件人，则等待指定时间
+                if i < len(recipients) - 1:
+                    delay_seconds = delay_milliseconds / 1000.0
+                    print(f"等待 {delay_seconds} 秒以避免超出频率限制...")
+                    time.sleep(delay_seconds)
+
             print(f"邮件通知流程完成，共成功发送给 {len(recipients)} 个收件人。")
     except Exception as e:
         print(f"::error::发送邮件失败: {e}")
@@ -208,6 +224,8 @@ def main():
         with open(CONFIG_FILE, "r", encoding="utf-8") as f:
             config = yaml.safe_load(f)
             targets = config.get("targets", [])
+            settings = config.get("settings", {})
+            email_delay_ms = settings.get("email_delay_milliseconds", 1000)
     except FileNotFoundError:
         print(f"::error::错误: 未找到配置文件 {CONFIG_FILE}。")
         sys.exit(1)
@@ -356,7 +374,7 @@ def main():
         unique_recipients = sorted(list(set(recipients)))
 
         email_subject = f"网页/API 变更监控提醒 ({now_str})"
-        send_email_notification(email_subject, all_changes, unique_recipients)
+        send_email_notification(email_subject, all_changes, unique_recipients, email_delay_ms)
         
         now_for_commit = now_for_notification.strftime('%Y-%m-%d %H:%M')
         commit_message = f"【自动监控】内容发生变化 ({now_for_commit})"
