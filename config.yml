@@ -1,3 +1,9 @@
+# 全局配置
+settings:
+  # 每封邮件之间的发送延迟（毫秒），以避免超出频率限制。默认为 1000 毫秒。
+  email_delay_milliseconds: 1000
+
+# 监控目标列表
 targets:
   - type: "url"
     value: "https://xieqiuyi.com/XIX/user"
