@@ -1,0 +1,5 @@
+--- old
++++ new
+@@ -1 +1 @@
+-{"closed":false,"message":"Answer"}
++{"closed":true,"message":"00431537124X"}
