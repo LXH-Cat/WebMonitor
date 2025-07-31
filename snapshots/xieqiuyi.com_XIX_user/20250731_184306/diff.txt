@@ -1,0 +1,687 @@
+--- old
++++ new
+@@ -1 +1,342 @@
+-Connection Error: ConnectionError
++<!DOCTYPE html>
+
++<html lang="zh-CN">
+
++<head>
+
++  <meta charset="UTF-8">
+
++  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
++  <title>XIXXXI</title>
+
++  <link rel="stylesheet" href="style.css">
+
++</head>
+
++<body>
+
++  <!-- 背景球体 -->
+
++  <div class="balls-container" id="balls-container"></div>
+
++  
+
++  <!-- 扫描线 -->
+
++  <div class="scanlines" id="scanlines"></div>
+
++  
+
++  <!-- 全局闪烁层 -->
+
++  <div class="flicker-overlay" id="flicker-overlay"></div>
+
++  
+
++  <!-- 主容器 -->
+
++  <div class="container">
+
++    <header>
+
++      <h1>recollection</h1>
+
++      <div class="countdown">
+
++        <span id="days">00</span><span class="countdown-label">D</span>
+
++        <span id="hours">00</span><span class="countdown-label">H</span>
+
++        <span id="minutes">00</span><span class="countdown-label">M</span>
+
++        <span id="seconds">00</span><span class="countdown-label">S</span>
+
++      </div>
+
++    </header>
+
++    
+
++    <div class="input-groups">
+
++      <div class="group">
+
++        <div class="group-label">2:57(0043)（Video frames）</div>
+
++        <div class="input-row" id="group1">
+
++          <div class="input-cell"><input type="text" maxlength="1" class="digit-input" data-group="1" data-index="1"></div>
+
++          <div class="input-cell"><input type="text" maxlength="1" class="digit-input" data-group="1" data-index="2"></div>
+
++          <div class="input-cell"><input type="text" maxlength="1" class="digit-input" data-group="1" data-index="3"></div>
+
++          <div class="input-cell"><input type="text" maxlength="1" class="digit-input" data-group="1" data-index="4"></div>
+
++        </div>
+
++      </div>
+
++      
+
++      <div class="group">
+
++        <div class="group-label">00:04（Video frames）(15xx)</div>
+
++        <div class="input-row" id="group2">
+
++          <div class="input-cell"><input type="text" maxlength="1" class="digit-input" data-group="2" data-index="1"></div>
+
++          <div class="input-cell"><input type="text" maxlength="1" class="digit-input" data-group="2" data-index="2"></div>
+
++          <div class="input-cell"><input type="text" maxlength="1" class="digit-input" data-group="2" data-index="3"></div>
+
++          <div class="input-cell"><input type="text" maxlength="1" class="digit-input" data-group="2" data-index="4"></div>
+
++        </div>
+
++      </div>
+
++      
+
++      <div class="group">
+
++        <div class="group-label" id="group3-label">time（x24x）</div>
+
++        <div class="input-row" id="group3">
+
++          <div class="input-cell"><input type="text" maxlength="1" class="digit-input" data-group="3" data-index="1"></div>
+
++          <div class="input-cell"><input type="text" maxlength="1" class="digit-input" data-group="3" data-index="2"></div>
+
++          <div class="input-cell"><input type="text" maxlength="1" class="digit-input" data-group="3" data-index="3"></div>
+
++          <div class="input-cell"><input type="text" maxlength="1" class="digit-input" data-group="3" data-index="4"></div>
+
++        </div>
+
++      </div>
+
++    </div>
+
++    
+
++    <div class="btn-container">
+
++      <button id="submit-btn" class="btn">transmit</button>
+
++    </div>
+
++    
+
++    <div id="status-message" class="status-message"></div>
+
++  </div>
+
++
+
++  <script>
+
++  
+
++  
+
++  
+
++  
+
++  // 你试图再找什么呀？
+
++  
+
++  
+
++  
+
++  
+
++    // 倒计时目标时间 - 2025年7月31日00:00:00
+
++    const TARGET_DATE = new Date('8 3, 2025 00:00:00').getTime();
+
++    let timeExpired = false;
+
++    
+
++
+
++    
+
++    // 输入框限制只能输入数字
+
++    const digitInputs = document.querySelectorAll('.digit-input');
+
++    const submitBtn = document.getElementById('submit-btn');
+
++    
+
++    digitInputs.forEach(input => {
+
++      input.addEventListener('input', function() {
+
++        this.value = this.value.replace(/[^0-9]/g, '');
+
++        
+
++        // 自动聚焦到下一个输入框
+
++        if (this.value.length === 1) {
+
++          const nextIndex = parseInt(this.dataset.index) + 1;
+
++          const group = this.dataset.group;
+
++          
+
++          const nextInput = document.querySelector(`.digit-input[data-group="${group}"][data-index="${nextIndex}"]`);
+
++          if (nextInput) nextInput.focus();
+
++        }
+
++      });
+
++      
+
++      // 处理退格键
+
++      input.addEventListener('keydown', function(e) {
+
++        if (e.key === 'Backspace' && this.value === '') {
+
++          const prevIndex = parseInt(this.dataset.index) - 1;
+
++          if (prevIndex > 0) {
+
++            const prevInput = document.querySelector(`.digit-input[data-group="${this.dataset.group}"][data-index="${prevIndex}"]`);
+
++            if (prevInput) prevInput.focus();
+
++          }
+
++        }
+
++      });
+
++    });
+
++    
+
++    // 倒计时功能
+
++    function updateCountdown() {
+
++      const now = new Date().getTime();
+
++      const timeLeft = TARGET_DATE - now;
+
++      
+
++      // 如果倒计时结束
+
++      if (timeLeft < 0) {
+
++        timeExpired = true;
+
++        document.querySelector('.countdown').innerHTML = "nop";
+
++        
+
++        // 禁用所有输入框和按钮
+
++        digitInputs.forEach(input => input.disabled = true);
+
++        submitBtn.disabled = true;
+
++        submitBtn.textContent = '系统已锁定';
+
++        return;
+
++      }
+
++      
+
++      // 计算天、小时、分钟、秒
+
++      const days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
+
++      const hours = Math.floor((timeLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+
++      const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+
++      const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+
++      
+
++      // 更新显示
+
++      document.getElementById('days').textContent = days.toString().padStart(2, '0');
+
++      document.getElementById('hours').textContent = hours.toString().padStart(2, '0');
+
++      document.getElementById('minutes').textContent = minutes.toString().padStart(2, '0');
+
++      document.getElementById('seconds').textContent = seconds.toString().padStart(2, '0');
+
++    }
+
++    
+
++    // 初始化倒计时并每秒更新
+
++    updateCountdown();
+
++    const countdownInterval = setInterval(updateCountdown, 1000);
+
++    
+
++   // 更新提交按钮点击事件
+
++submitBtn.addEventListener('click', async function() {
+
++  if (timeExpired) {
+
++    showStatusMessage('系统已锁定，无法提交', 'error');
+
++    return;
+
++  }
+
++
+
++  // 1. 先检查IP限制
+
++  const ipCheck = await fetch('record-ip', { method: 'POST' });
+
++  const ipResult = await ipCheck.json();
+
++  
+
++  if (!ipResult.allowAccess) {
+
++    showStatusMessage(ipResult.message, 'error');
+
++    return; // 直接终止流程
+
++  }
+
++
+
++  // 2. 只有通过IP检查才继续验证密码
+
++  const inputs = document.querySelectorAll('.digit-input');
+
++  let enteredPassword = '';
+
++  
+
++  inputs.forEach(input => {
+
++    enteredPassword += input.value || '0';
+
++    input.classList.remove('invalid');
+
++  });
+
++
+
++  submitBtn.disabled = true;
+
++  submitBtn.textContent = 'Verifying...';
+
++
+
++  fetch('verify', {
+
++    method: 'POST',
+
++    headers: { 'Content-Type': 'application/json' },
+
++    body: JSON.stringify({ password: enteredPassword })
+
++  })
+
++  .then(response => response.json())
+
++  .then(data => {
+
++    showStatusMessage(
+
++      data.success ? '✓ ' + data.message : '✗ ' + data.message,
+
++      data.success ? 'success' : 'error'
+
++    );
+
++  })
+
++  .finally(() => {
+
++    submitBtn.disabled = false;
+
++    submitBtn.textContent = 'transmit';
+
++  });
+
++});
+
++    
+
++    // 显示状态消息
+
++    function showStatusMessage(message, type) {
+
++  const statusEl = document.getElementById('status-message');
+
++  
+
++  // 重置状态并显示消息
+
++  statusEl.className = 'status-message visible ' + type;
+
++  statusEl.textContent = message;
+
++    }
+
++    
+
++    // 创建随机运动的球体
+
++    function createBalls() {
+
++      const container = document.getElementById('balls-container');
+
++      const ballCount = Math.floor(Math.random() * 5) + 4; // 4-8个球
+
++      
+
++      for (let i = 0; i < ballCount; i++) {
+
++        const ball = document.createElement('div');
+
++        ball.classList.add('ball');
+
++        
+
++        // 随机大小 (50px - 150px)
+
++        const size = Math.floor(Math.random() * 600) + 30;
+
++        ball.style.width = `${size}px`;
+
++        ball.style.height = `${size}px`;
+
++        
+
++        // 随机位置
+
++        ball.style.left = `${Math.random() * 100}%`;
+
++        ball.style.top = `${Math.random() * 100}%`;
+
++        
+
++        // 随机速度
+
++        const speedX = (Math.random() - 1) * 0.11;
+
++        const speedY = (Math.random() - 0.8) * 0.11;
+
++        
+
++        container.appendChild(ball);
+
++        
+
++        // 动画球体
+
++        animateBall(ball, speedX, speedY);
+
++      }
+
++    }
+
++    
+
++    // 动画球体
+
++    function animateBall(ball, speedX, speedY) {
+
++      let x = parseFloat(ball.style.left);
+
++      let y = parseFloat(ball.style.top);
+
++      const size = parseFloat(ball.style.width);
+
++      
+
++      function move() {
+
++        x += speedX;
+
++        y += speedY;
+
++        
+
++        // 边界检查
+
++        if (x < 0) {
+
++          x = 0;
+
++          speedX = -speedX;
+
++        } else if (x > 100 - (size / window.innerWidth * 100)) {
+
++          x = 100 - (size / window.innerWidth * 100);
+
++          speedX = -speedX;
+
++        }
+
++        
+
++        if (y < 0) {
+
++          y = 0;
+
++          speedY = -speedY;
+
++        } else if (y > 100 - (size / window.innerHeight * 100)) {
+
++          y = 100 - (size / window.innerHeight * 100);
+
++          speedY = -speedY;
+
++        }
+
++        
+
++        ball.style.left = `${x}%`;
+
++        ball.style.top = `${y}%`;
+
++        
+
++        requestAnimationFrame(move);
+
++      }
+
++      
+
++      move();
+
++    }
+
++    
+
++    // 创建扫描线
+
++    function createScanlines() {
+
++      const container = document.getElementById('scanlines');
+
++      const lineCount = Math.floor(Math.random() * 3) + 4; // 4-6条扫描线
+
++      
+
++      for (let i = 0; i < lineCount; i++) {
+
++        const line = document.createElement('div');
+
++        line.classList.add('scanline');
+
++        
+
++        // 随机位置
+
++        line.style.top = `${Math.random() * 100}%`;
+
++        
+
++        // 随机高度 (1px - 3px)
+
++        const height = Math.floor(Math.random() * 3) + 1;
+
++        line.style.height = `${height}px`;
+
++        
+
++        // 随机速度
+
++        const speed = (Math.random() * 2) + 1; // 1-3
+
++        const direction = Math.random() > 0.5 ? 1 : -1;
+
++        
+
++        container.appendChild(line);
+
++        
+
++        // 动画扫描线
+
++        animateScanline(line, speed * direction);
+
++      }
+
++    }
+
++    
+
++    // 动画扫描线
+
++    function animateScanline(line, speed) {
+
++      let position = parseFloat(line.style.top);
+
++      
+
++      function move() {
+
++        position += speed * 0.1;
+
++        
+
++        // 边界检查
+
++        if (position > 100) {
+
++          position = 0;
+
++        } else if (position < 0) {
+
++          position = 100;
+
++        }
+
++        
+
++        line.style.top = `${position}%`;
+
++        
+
++        requestAnimationFrame(move);
+
++      }
+
++      
+
++      move();
+
++    }
+
++    
+
++    // 全局闪烁效果
+
++    function createFlicker() {
+
++      const overlay = document.getElementById('flicker-overlay');
+
++      
+
++      function flicker() {
+
++        // 随机闪烁 - 0%到80%透明度
+
++        const opacity = Math.random() * 0.8;
+
++        overlay.style.opacity = opacity;
+
++        
+
++        // 随机间隔 (0.1秒到2秒)
+
++        const nextFlicker = Math.random() * 1900 + 100;
+
++        setTimeout(flicker, nextFlicker);
+
++      }
+
++      
+
++      flicker();
+
++    }
+
++    
+
++    // 初始化背景效果
+
++    createBalls();
+
++    createScanlines();
+
++    createFlicker();
+
++  </script>
+
++</body>
+
++</html>
