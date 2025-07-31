@@ -1,0 +1,54 @@
+--- old
++++ new
+@@ -557,13 +557,19 @@
+         })
+
+         .catch(err => console.error('检查失真状态失败', err));
+
+ }
+
+-
+
+-        setInterval(checkDistortionStatus, 1000); // 每秒检查一次状态
+
+-        setInterval(fetchMessages, 1000);
+
+-        setInterval(fetchState, 1000);
+
+-        setInterval(fetchSession, 1000);
+
+-        setInterval(checkResetStatus, 1000);
+
+-        setInterval(checkSiteStatus, 1000);
+
++    // 修改定时器逻辑
+
++    setInterval(() => {
+
++        checkDistortionStatus();
+
++        fetchState();
+
++        fetchSession();
+
++        checkResetStatus();
+
++        checkSiteStatus();
+
++        
+
++        // 仅在登录后获取消息
+
++        if (sessionActive) {
+
++            fetchMessages();
+
++        }
+
++    }, 1000);
+
+     </script>
+
+ </body>
+
+ </html>
