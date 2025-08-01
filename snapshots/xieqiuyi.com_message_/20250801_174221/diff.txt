@@ -1,0 +1,5 @@
+--- old
++++ new
+@@ -1 +1 @@
+-Connection Error: ConnectTimeout
++HTTP Error: 404 Not Found

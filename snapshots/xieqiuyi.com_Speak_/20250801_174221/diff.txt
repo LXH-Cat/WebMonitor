@@ -1,0 +1,569 @@
+--- old
++++ new
+@@ -1 +1,283 @@
+-Connection Error: ConnectTimeout
++<!DOCTYPE html>
+
++<html lang="zh-CN">
+
++<head>
+
++    <meta charset="UTF-8">
+
++    <title>对话-Null</title>
+
++    <style>
+
++        body {
+
++            background-color: #000;
+
++            font-family: Arial, sans-serif;
+
++            display: flex;
+
++            justify-content: center;
+
++            align-items: center;
+
++            height: 100vh;
+
++            margin: 0;
+
++            text-align: left;
+
++        }
+
++        #dialogue-box {
+
++            background-color: #000;
+
++            padding: 20px;
+
++            border-radius: 8px;
+
++            border: 1px solid #fff;
+
++            width: 400px;
+
++            max-height: 80vh;
+
++            overflow-y: auto;
+
++            box-sizing: border-box;
+
++        }
+
++        #dialogue-box::-webkit-scrollbar {
+
++            width: 7px;
+
++            background-color: rgba(0, 0, 0, 0.2);
+
++        }
+
++        #dialogue-box::-webkit-scrollbar-thumb {
+
++            background-color: rgb(255, 255, 255);
+
++            border-radius: 20px;
+
++        }
+
++        .message {
+
++            margin: 10px 0;
+
++            color: #fff;
+
++            opacity: 0;
+
++            transform: translateY(20px);
+
++            animation: fadeInUp 0.5s forwards;
+
++        }
+
++        .options {
+
++            margin-top: 20px;
+
++        }
+
++        .option {
+
++            background-color: #000;
+
++            color: #fff;
+
++            border: 1px solid #fff;
+
++            padding: 10px;
+
++            border-radius: 5px;
+
++            cursor: pointer;
+
++            margin-top: 10px;
+
++            text-align: center;
+
++            opacity: 0;
+
++            transform: translateY(20px);
+
++            animation: fadeInUp 0.5s forwards;
+
++        }
+
++        .option:hover {
+
++            background-color: #333;
+
++        }
+
++        .user-message {
+
++            text-align: right;
+
++            color: #888;
+
++        }
+
++        .typing-indicator {
+
++            margin: 10px 0;
+
++            color: #888;
+
++        }
+
++        @keyframes fadeInUp {
+
++            from {
+
++                opacity: 0;
+
++                transform: translateY(20px);
+
++            }
+
++            to {
+
++                opacity: 1;
+
++                transform: translateY(0);
+
++            }
+
++        }
+
++        @keyframes fadeOutDown {
+
++            from {
+
++                opacity: 1;
+
++                transform: translateY(0);
+
++            }
+
++            to {
+
++                opacity: 0;
+
++                transform: translateY(20px);
+
++            }
+
++        }
+
++    </style>
+
++</head>
+
++<body>
+
++    <div id="dialogue-box">
+
++        <div id="dialogue">
+
++            <div class="message" id="line1" style="opacity: 1; transform: none;">Null长时间未响应...</div>
+
++        </div>
+
++        <div class="options" id="options"></div> 
+
++    </div>
+
++
+
++    <script>
+
++        const dialogues = [
+
++            {
+
++                options: ["*连接*"],
+
++                responses: [
+
++                    ["无法连接"]
+
++                ]
+
++            },
+
++            {
+
++                options: ["*连接*"],
+
++                responses: [
+
++                     ["无法连接，无信号"]
+
++                ]
+
++            },
+
++            {
+
++                options: ["*连接端口*"],
+
++                responses: [
+
++                ["连接失败，对方为响应请求"]
+
++                ]
+
++            },
+
++            {
+
++                options: ["*关闭端口*"],
+
++                responses: [
+
++                    ["正在关闭对话...", "*关闭对话*"]
+
++                ]
+
++            },
+
++           
+
++        ];
+
++
+
++        let currentRound = 0;
+
++
+
++        // 获取当前日期（格式为 YYYY-MM-DD）
+
++        function getCurrentDate() {
+
++            const today = new Date();
+
++            return today.toISOString().split('T')[0];
+
++        }
+
++
+
++        // 检查是否可以访问对话
+
++        function canAccessDialogue() {
+
++            const lastAccessDate = localStorage.getItem('lastAccessDate');
+
++            const currentDate = getCurrentDate();
+
++
+
++            if (lastAccessDate !== currentDate) {
+
++                // 更新访问日期
+
++                localStorage.setItem('lastAccessDate', currentDate);
+
++                localStorage.removeItem('dialogueCompleted'); // 重置对话完成状态
+
++                return true;
+
++            }
+
++            return !localStorage.getItem('dialogueCompleted');
+
++        }
+
++
+
++        // 在页面加载时检查对话状态
+
++        if (canAccessDialogue()) {
+
++            showOptions();
+
++        } else {
+
++            document.getElementById('dialogue').innerHTML = '<div class="message">对话已结束。您已完成此对话。</div>';
+
++        }
+
++
+
++        function showOptions() {
+
++            const optionsDiv = document.getElementById('options');
+
++            optionsDiv.innerHTML = '';
+
++            dialogues[currentRound].options.forEach((option, index) => {
+
++                const optionButton = document.createElement('div');
+
++                optionButton.className = 'option';
+
++                optionButton.textContent = option;
+
++                optionButton.style.animationDelay = `${index * 0.1}s`;
+
++                optionButton.onclick = () => chooseOption(index);
+
++                optionsDiv.appendChild(optionButton);
+
++            });
+
++            optionsDiv.style.display = 'block';
+
++            scrollToBottom(); // 滚动到底部
+
++        }
+
++
+
++        function chooseOption(choice) {
+
++            const dialogue = document.getElementById('dialogue');
+
++            const options = document.getElementById('options');
+
++
+
++            // 禁用所有选项
+
++            Array.from(options.children).forEach(option => {
+
++                option.onclick = null;
+
++                option.style.pointerEvents = 'none'; // 禁用点击
+
++            });
+
++
+
++            Array.from(options.children).forEach((option, index) => {
+
++                option.style.animation = 'fadeOutDown 0.5s forwards';
+
++                option.style.animationDelay = `${index * 0.1}s`;
+
++            });
+
++
+
++            setTimeout(() => {
+
++                options.style.display = 'none';
+
++
+
++                const userMessage = document.createElement('div');
+
++                userMessage.className = 'message user-message';
+
++                userMessage.textContent = dialogues[currentRound].options[choice];
+
++                dialogue.appendChild(userMessage);
+
++                scrollToBottom(); // 滚动到底部
+
++
+
++                const typingIndicator = document.createElement('div');
+
++                typingIndicator.className = 'typing-indicator';
+
++                typingIndicator.textContent = '.';
+
++                dialogue.appendChild(typingIndicator);
+
++                scrollToBottom(); // 滚动到底部
+
++
+
++                let dots = 0;
+
++                const typingAnimation = setInterval(() => {
+
++                    dots = (dots + 1) % 4;
+
++                    typingIndicator.textContent = '.' + '.'.repeat(dots);
+
++                }, 500);
+
++
+
++                const delay = Math.floor(Math.random() * 3000) + 3000;
+
++
+
++                setTimeout(() => {
+
++                    clearInterval(typingAnimation);
+
++                    dialogue.removeChild(typingIndicator);
+
++
+
++                    const responses = dialogues[currentRound].responses[choice];
+
++                    let responseIndex = 0;
+
++
+
++                    function showNextResponse() {
+
++                        if (responseIndex < responses.length) {
+
++                            const responseElement = document.createElement('div');
+
++                            responseElement.className = 'message';
+
++                            dialogue.appendChild(responseElement);
+
++
+
++                            let charIndex = 0;
+
++                            const typingEffect = setInterval(() => {
+
++                                if (charIndex < responses[responseIndex].length) {
+
++                                    responseElement.textContent += responses[responseIndex][charIndex];
+
++                                    charIndex++;
+
++                                    scrollToBottom(); // 滚动到底部
+
++                                } else {
+
++                                    clearInterval(typingEffect);
+
++                                    responseIndex++;
+
++                                    if (responseIndex < responses.length) {
+
++                                        setTimeout(showNextResponse, 1000);
+
++                                    } else {
+
++                                        if (responses[responseIndex - 1] === "*关闭对话*") {
+
++                                            endDialogue();
+
++                                        } else if (responses[responseIndex - 1] === "*跳转网页*") {
+
++                                            redirectToPage();
+
++                                        } else {
+
++                                            currentRound++;
+
++                                            if (currentRound < dialogues.length) {
+
++                                                setTimeout(showOptions, 1000);
+
++                                            }
+
++                                        }
+
++                                    }
+
++                                }
+
++                            }, 100);
+
++                        }
+
++                    }
+
++
+
++                    showNextResponse();
+
++                }, delay);
+
++            }, 500);
+
++        }
+
++
+
++        function scrollToBottom() {
+
++            const dialogueBox = document.getElementById('dialogue-box');
+
++            dialogueBox.scrollTo({
+
++                top: dialogueBox.scrollHeight,
+
++                behavior: 'smooth'
+
++            });
+
++        }
+
++
+
++        function endDialogue() {
+
++            const options = document.getElementById('options');
+
++            options.innerHTML = '';
+
++            const endMessage = document.createElement('div');
+
++            endMessage.className = 'message';
+
++            endMessage.textContent = "对话已结束";
+
++            document.getElementById('dialogue').appendChild(endMessage);
+
++            scrollToBottom(); // 滚动到底部
+
++
+
++            // 记录对话已完成
+
++            localStorage.setItem('dialogueCompleted', 'true');
+
++        }
+
++
+
++        function redirectToPage() {
+
++            const url = "https://xieqiuyi.com/message/"; // 链接
+
++            window.open(url, '_blank');
+
++        }
+
++    </script>
+
++</body>
+
++</html>
