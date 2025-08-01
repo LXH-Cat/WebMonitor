@@ -1,0 +1,18 @@
+--- old
++++ new
+@@ -189,7 +189,7 @@
+         
+
+     </div>
+
+     <div id="downloadPopup">
+
+-        <p>文件正在下载，请不要关闭或刷新浏览器!(预计时间7-9分钟)</p>
+
++        <p>文件正在下载，请不要关闭或刷新浏览器!！(下载时间不超10分钟)</p>
+
+         <button id="closeDownloadPopup">确定</button>
+
+     </div>
+
+     <div id="popup">
