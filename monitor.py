@@ -35,11 +35,8 @@ def get_safe_filename_from_url(url):
         return None
     try:
         parsed_url = urlparse(url)
-        # 结合域名和路径，替换斜杠
         filename = f"{parsed_url.netloc}{parsed_url.path.replace('/', '_')}"
-        # 清理文件名中的不安全字符
         safe_filename = "".join(c for c in filename if c.isalnum() or c in ('-', '_', '.')).rstrip()
-        # 如果文件名过长，则使用其哈希值
         if len(safe_filename) > 100:
             return hashlib.md5(url.encode('utf-8')).hexdigest()
         return safe_filename
@@ -51,46 +48,57 @@ def extract_url_from_curl(command):
     """从 curl 命令中提取主要的目标 URL (通常是第一个)"""
     urls = re.findall(r'https?://[^\s\'"]+', command)
     if urls:
-        # 返回第一个匹配到的 URL，这通常是主请求的目标
         return urls[0]
     return None
 
-def fetch_content_from_url(url):
-    """从 URL 获取内容, 将 HTTP 错误视为一种内容状态"""
-    try:
-        response = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
-        # 不再使用 response.raise_for_status()
-        if response.ok: # 检查状态码是否为 2xx
-            return response.content, False # content, is_error
-        else:
-            # 如果是 4xx 或 5xx 错误，我们将其视为一种"状态"
-            error_state_content = f"HTTP Error: {response.status_code} {response.reason}"
-            return error_state_content.encode('utf-8'), True
-    except requests.RequestException as e:
-        # 对于连接错误等，也视为一种状态
-        print(f"::warning::获取 URL '{url}' 出错: {e}")
-        error_state_content = f"Connection Error: {type(e).__name__}"
-        return error_state_content.encode('utf-8'), True
+def fetch_content_from_url(url, retry_count, retry_delay):
+    """从 URL 获取内容, 包含重试机制"""
+    last_exception = None
+    for attempt in range(retry_count):
+        try:
+            response = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
+            if response.ok:
+                return response.content, False
+            else:
+                error_state_content = f"HTTP Error: {response.status_code} {response.reason}"
+                return error_state_content.encode('utf-8'), True
+        except requests.RequestException as e:
+            last_exception = e
+            print(f"::warning::第 {attempt + 1}/{retry_count} 次尝试获取 '{url}' 失败: {e}")
+            if attempt < retry_count - 1:
+                print(f"将在 {retry_delay} 秒后重试...")
+                time.sleep(retry_delay)
+    
+    error_state_content = f"连接错误: 重试 {retry_count} 次后依然失败 ({type(last_exception).__name__})"
+    return error_state_content.encode('utf-8'), True
 
-def fetch_content_from_curl(command):
-    """执行 curl 命令并获取其输出, 将命令失败视为一种内容状态"""
-    try:
-        # 使用 shell=True 来执行完整的命令字符串
-        result = subprocess.run(command, shell=True, capture_output=True, text=True, check=True, timeout=TIMEOUT)
-        return result.stdout.encode('utf-8'), False # content, is_error
-    except subprocess.CalledProcessError as e:
-        print(f"::warning::执行 curl 命令失败。命令: [{command}], 错误: {e.stderr}")
-        # 将命令执行失败视为一种状态
-        error_state_content = f"cURL Command Failed with Exit Code {e.returncode}\nError: {e.stderr.strip()}"
-        return error_state_content.encode('utf-8'), True
-    except subprocess.TimeoutExpired:
-        print(f"::warning::执行 curl 命令超时。命令: [{command}]")
-        error_state_content = f"cURL Command Timed Out"
-        return error_state_content.encode('utf-8'), True
-    except Exception as e:
-        print(f"::error::执行 curl 命令时发生未知错误: {e}")
-        error_state_content = f"Unknown cURL Error: {type(e).__name__}"
-        return error_state_content.encode('utf-8'), True
+def fetch_content_from_curl(command, retry_count, retry_delay):
+    """执行 curl 命令并获取其输出, 包含重试机制"""
+    last_exception = None
+    for attempt in range(retry_count):
+        try:
+            result = subprocess.run(command, shell=True, capture_output=True, text=True, check=True, timeout=TIMEOUT)
+            return result.stdout.encode('utf-8'), False
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+            last_exception = e
+            error_details = e.stderr if isinstance(e, subprocess.CalledProcessError) else "Timeout"
+            print(f"::warning::第 {attempt + 1}/{retry_count} 次执行 curl 命令失败: {error_details.strip()}")
+            if attempt < retry_count - 1:
+                print(f"将在 {retry_delay} 秒后重试...")
+                time.sleep(retry_delay)
+        except Exception as e:
+            print(f"::error::执行 curl 命令时发生未知错误: {e}")
+            error_state_content = f"Unknown cURL Error: {type(e).__name__}"
+            return error_state_content.encode('utf-8'), True
+
+    if isinstance(last_exception, subprocess.CalledProcessError):
+        error_state_content = f"cURL 命令失败: 重试 {retry_count} 次后依然失败 (退出码 {last_exception.returncode})\n错误: {last_exception.stderr.strip()}"
+    elif isinstance(last_exception, subprocess.TimeoutExpired):
+        error_state_content = f"cURL 命令超时: 重试 {retry_count} 次后依然失败"
+    else:
+        error_state_content = f"cURL 命令失败: 重试 {retry_count} 次后依然失败"
+        
+    return error_state_content.encode('utf-8'), True
 
 def get_content_hash(content):
     """计算内容的SHA-256哈希值"""
@@ -100,10 +108,8 @@ def send_webhook_notification(webhook_urls_str, timestamp, summary):
     """向多个 Webhook 地址发送通知"""
     if not webhook_urls_str:
         return
-
     urls = [url.strip() for url in webhook_urls_str.split(',') if url.strip()]
     custom_payload_str = os.environ.get("WEBHOOK_CUSTOM_PAYLOAD")
-
     for url in urls:
         try:
             if custom_payload_str:
@@ -112,7 +118,6 @@ def send_webhook_notification(webhook_urls_str, timestamp, summary):
             else:
                 text_content = (f"网页/API 变更监控提醒\n检测时间: {timestamp}\n\n{summary}")
                 payload = {"msgtype": "text", "text": {"content": text_content}}
-            
             requests.post(url, json=payload, timeout=10)
             print(f"Webhook 通知已发送至: {url}")
         except Exception as e:
@@ -123,19 +128,16 @@ def send_email_notification(subject, changes_list, recipients, delay_millisecond
     if not recipients:
         print("::notice::未配置任何邮件接收人，跳过邮件通知。")
         return
-
     smtp_host = os.environ.get("SMTP_HOST")
     smtp_port = os.environ.get("SMTP_PORT")
     smtp_user = os.environ.get("SMTP_USER")
     smtp_password = os.environ.get("SMTP_PASSWORD")
     mail_from = os.environ.get("MAIL_FROM")
     sender_name = os.environ.get("MAIL_SENDER_NAME")
-
     if not all([smtp_host, smtp_port, smtp_user, smtp_password, mail_from]):
         print("::notice::SMTP 服务器未完全配置，跳过邮件通知。")
         return
     
-    # --- 生成邮件内容 (只需生成一次) ---
     plain_text_parts = []
     for change in changes_list:
         display_name = f"{change['name']} ({change['url']})" if change.get('name') else change['url']
@@ -180,33 +182,22 @@ def send_email_notification(subject, changes_list, recipients, delay_millisecond
         context = ssl.create_default_context()
         with smtplib.SMTP_SSL(smtp_host, int(smtp_port), context=context) as server:
             server.login(smtp_user, smtp_password)
-            
-            # --- 循环为每个收件人单独发送邮件 ---
             for i, recipient in enumerate(recipients):
                 message = MIMEMultipart("alternative")
                 message["Subject"] = Header(subject, 'utf-8')
-                
-                # 正确设置发件人
                 if sender_name:
                     message["From"] = formataddr((Header(sender_name, 'utf-8').encode(), mail_from))
                 else:
                     message["From"] = mail_from
-                
-                # 正确设置收件人（仅当前循环的收件人）
                 message["To"] = recipient
-
                 message.attach(MIMEText(plain_body, "plain", "utf-8"))
                 message.attach(MIMEText(html_template, "html", "utf-8"))
-
                 server.sendmail(mail_from, [recipient], message.as_string())
                 print(f"邮件已发送至: {recipient}")
-                
-                # 如果不是最后一个收件人，则等待指定时间
                 if i < len(recipients) - 1:
                     delay_seconds = delay_milliseconds / 1000.0
                     print(f"等待 {delay_seconds} 秒以避免超出频率限制...")
                     time.sleep(delay_seconds)
-
             print(f"邮件通知流程完成，共成功发送给 {len(recipients)} 个收件人。")
     except Exception as e:
         print(f"::error::发送邮件失败: {e}")
@@ -216,7 +207,6 @@ def main():
     repo_full_name = os.environ.get("GITHUB_REPOSITORY")
     if not repo_full_name:
         print("::warning::未找到 GITHUB_REPOSITORY 环境变量，无法生成快照链接。")
-
     if not os.path.exists(SNAPSHOT_DIR):
         os.makedirs(SNAPSHOT_DIR)
 
@@ -226,6 +216,8 @@ def main():
             targets = config.get("targets", [])
             settings = config.get("settings", {})
             email_delay_ms = settings.get("email_delay_milliseconds", 1000)
+            retry_count = settings.get("retry_count", 3)
+            retry_delay = settings.get("retry_delay_seconds", 5)
     except FileNotFoundError:
         print(f"::error::错误: 未找到配置文件 {CONFIG_FILE}。")
         sys.exit(1)
@@ -234,21 +226,16 @@ def main():
         sys.exit(1)
 
     all_changes = []
-
     for target in targets:
-        name = target.get("name") # name 是可选的
+        name = target.get("name")
         type = target.get("type")
-        
-        # --- 确定 URL 和内容获取方式 ---
-        target_url = None
-        content = None
-        is_error = False
+        target_url, content, is_error = None, None, False
         if type == "url":
             target_url = target.get("value")
             if not target_url:
                 print(f"::warning::类型为 'url' 的目标缺少 'value' 字段，已跳过。")
                 continue
-            content, is_error = fetch_content_from_url(target_url)
+            content, is_error = fetch_content_from_url(target_url, retry_count, retry_delay)
         elif type == "curl":
             command = target.get("command")
             if not command:
@@ -258,12 +245,11 @@ def main():
             if not target_url:
                 print(f"::error::无法从 curl 命令中解析出 URL，请检查命令: [{command}]")
                 continue
-            content, is_error = fetch_content_from_curl(command)
+            content, is_error = fetch_content_from_curl(command, retry_count, retry_delay)
         else:
             print(f"::warning::不支持的类型 '{type}'，目标 '{name or '未命名'}' 已跳过。")
             continue
         
-        # --- 统一使用 URL 命名文件夹 ---
         safe_name = get_safe_filename_from_url(target_url)
         if not safe_name:
             print(f"::warning::无法为 URL '{target_url}' 生成文件夹名，已跳过。")
@@ -271,14 +257,12 @@ def main():
 
         display_name = name or target_url
         print(f"正在检查 '{display_name}'...")
-
         url_dir = os.path.join(SNAPSHOT_DIR, safe_name)
         if not os.path.exists(url_dir):
             os.makedirs(url_dir)
 
         latest_hash_file = os.path.join(url_dir, "latest.hash")
         current_hash = get_content_hash(content)
-        
         last_hash = None
         if os.path.exists(latest_hash_file):
             with open(latest_hash_file, "r", encoding="utf-8") as f:
@@ -286,19 +270,14 @@ def main():
 
         if current_hash != last_hash:
             print(f"::notice title=检测到变化::{display_name}")
-            
             now = datetime.now(CST_TZ)
             timestamp_str = now.strftime("%Y%m%d_%H%M%S")
             change_dir = os.path.join(url_dir, timestamp_str)
             os.makedirs(change_dir)
             
-            # 根据内容类型决定快照文件名
-            if is_error:
-                snapshot_filename = "error.txt"
-            elif type == "url":
-                snapshot_filename = "snapshot.html"
-            else: # curl
-                snapshot_filename = "response.txt"
+            if is_error: snapshot_filename = "error.txt"
+            elif type == "url": snapshot_filename = "snapshot.html"
+            else: snapshot_filename = "response.txt"
             
             new_snapshot_file = os.path.join(change_dir, snapshot_filename)
             with open(new_snapshot_file, "wb") as f:
@@ -310,19 +289,15 @@ def main():
                 if history_dirs:
                     last_snapshot_dir = os.path.join(url_dir, history_dirs[-1])
                     last_snapshot_path = None
-                    # 寻找上一个快照文件，无论其名称是什么
                     possible_filenames = ["snapshot.html", "response.txt", "error.txt"]
                     for f_name in os.listdir(last_snapshot_dir):
                         if f_name in possible_filenames:
                             last_snapshot_path = os.path.join(last_snapshot_dir, f_name)
                             break
-                    
                     if last_snapshot_path and os.path.exists(last_snapshot_path):
-                        with open(last_snapshot_path, "r", encoding='utf-8', errors='ignore') as f_old:
-                            old_lines = f_old.readlines()
-                        # 新文件也可能是错误信息文本，所以用同样的方式读取
-                        with open(new_snapshot_file, "r", encoding='utf-8', errors='ignore') as f_new:
-                            new_lines = f_new.readlines()
+                        with open(last_snapshot_path, "r", encoding='utf-8', errors='ignore') as f_old, \
+                             open(new_snapshot_file, "r", encoding='utf-8', errors='ignore') as f_new:
+                            old_lines, new_lines = f_old.readlines(), f_new.readlines()
                         diff = difflib.unified_diff(old_lines, new_lines, fromfile='old', tofile='new', lineterm='')
                         diff_report_content = '\n'.join(diff)
 
