@@ -1,0 +1,1154 @@
+--- old
++++ new
+@@ -1,575 +1 @@
+-<!DOCTYPE html>
+
+-<html lang="zh-CN">
+
+-<head>
+
+-    <meta charset="viewport" content="width=device-width, initial-scale=1.0">
+
+-    <title>发送消息</title>
+
+-    <style>
+
+-    @keyframes randomBlock {
+
+-        0%, 100% {
+
+-            transform: translate(0, 0);
+
+-        }
+
+-        50% {
+
+-            transform: translate(var(--shake-x), var(--shake-y));
+
+-        }
+
+-    }
+
+-
+
+-    .random-block {
+
+-        position: absolute;
+
+-        z-index: 3;
+
+-        animation: randomBlock var(--shake-duration) infinite;
+
+-        box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+
+-    }
+
+-
+
+-    @keyframes globalShake {
+
+-        0%, 100% {
+
+-            transform: translate(0, 0);
+
+-        }
+
+-        50% {
+
+-            transform: translate(var(--global-shake-x), var(--global-shake-y));
+
+-        }
+
+-    }
+
+-
+
+-    .global-shake {
+
+-        animation: globalShake var(--global-shake-duration) infinite;
+
+-    }
+
+-
+
+-    
+
+-        @keyframes textGlitch {
+
+-            0%, 100% {
+
+-                text-shadow: 4px 0 red, -3px 0 rgb(111, 0, 255);
+
+-            }
+
+-            50% {
+
+-                text-shadow: -2px 0 rgb(255, 179, 0), 4px 0 rgb(153, 0, 255);
+
+-            }
+
+-        }
+
+-
+
+-        .glitch-effect {
+
+-            animation: textGlitch 0.1s infinite;
+
+-        }
+
+-
+
+-        body {
+
+-            background-color: black;
+
+-            color: white;
+
+-            display: flex;
+
+-            align-items: center;
+
+-            justify-content: center;
+
+-            height: 100vh;
+
+-            margin: 0;
+
+-            font-family: Arial, sans-serif;
+
+-            overflow: hidden;
+
+-            position: relative;
+
+-        }
+
+-
+
+-        .chat-container {
+
+-            position: relative;
+
+-            width: 80%;
+
+-            max-width: 600px;
+
+-            height: 70vh;
+
+-            background-color: black;
+
+-            border: 2px solid white;
+
+-            border-radius: 10px;
+
+-            display: flex;
+
+-            flex-direction: column;
+
+-            overflow: hidden;
+
+-            padding: 10px;
+
+-            box-sizing: border-box;
+
+-            z-index: 1;
+
+-        }
+
+-
+
+-        .messages {
+
+-            flex: 1;
+
+-            padding: 10px;
+
+-            overflow-y: auto;
+
+-            scroll-behavior: smooth;
+
+-        }
+
+-
+
+-        .messages::-webkit-scrollbar {
+
+-            width: 7px;
+
+-            background-color: rgba(0, 0, 0, 0.2);
+
+-        }
+
+-
+
+-        .messages::-webkit-scrollbar-thumb {
+
+-            background-color: rgb(255, 255, 255);
+
+-            border-radius: 20px;
+
+-        }
+
+-
+
+-        .message {
+
+-            margin-bottom: 10px;
+
+-            padding: 10px;
+
+-            border-radius: 5px;
+
+-            border: 2px solid white;
+
+-            max-width: 70%;
+
+-            word-wrap: break-word;
+
+-            opacity: 0;
+
+-            transform: translateY(20px);
+
+-            animation: fadeInUp 0.5s forwards;
+
+-        }
+
+-
+
+-        .message.user {
+
+-            background-color: black;
+
+-            color: white;
+
+-            margin-left: auto;
+
+-            text-align: right;
+
+-        }
+
+-
+
+-        .message.admin {
+
+-            background-color: black;
+
+-            color: white;
+
+-            margin-right: auto;
+
+-            text-align: left;
+
+-        }
+
+-
+
+-        .input-container, .login-container {
+
+-            display: flex;
+
+-            justify-content: space-between;
+
+-            align-items: center;
+
+-            margin-top: 10px;
+
+-        }
+
+-
+
+-        input[type="text"], input[type="password"] {
+
+-            flex: 1;
+
+-            padding: 10px;
+
+-            border: 2px solid white;
+
+-            border-radius: 10px;
+
+-            background-color: black;
+
+-            color: white;
+
+-            margin-right: 10px;
+
+-            box-sizing: border-box;
+
+-        }
+
+-
+
+-        button {
+
+-            padding: 10px 20px;
+
+-            border: 2px solid white;
+
+-            border-radius: 10px;
+
+-            background-color: black;
+
+-            color: white;
+
+-            cursor: pointer;
+
+-            box-sizing: border-box;
+
+-        }
+
+-
+
+-        button:hover {
+
+-            background-color: #333;
+
+-        }
+
+-
+
+-        .disabled {
+
+-            cursor: not-allowed;
+
+-            opacity: 0.5;
+
+-        }
+
+-
+
+-        .dialog {
+
+-            position: fixed;
+
+-            top: 50%;
+
+-            left: 50%;
+
+-            transform: translate(-50%, -50%) scale(0.8);
+
+-            background-color: black;
+
+-            color: white;
+
+-            padding: 20px;
+
+-            border: 2px solid white;
+
+-            border-radius: 10px;
+
+-            box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+
+-            opacity: 0;
+
+-            z-index: 1000;
+
+-            animation: dialogFadeIn 0.5s forwards;
+
+-        }
+
+-
+
+-        .dialog button {
+
+-            margin-top: 10px;
+
+-        }
+
+-
+
+-        @keyframes fadeInUp {
+
+-            to {
+
+-                opacity: 1;
+
+-                transform: translateY(0);
+
+-            }
+
+-        }
+
+-
+
+-        @keyframes dialogFadeIn {
+
+-            to {
+
+-                opacity: 1;
+
+-                transform: translate(-50%, -50%) scale(1);
+
+-            }
+
+-        }
+
+-
+
+-        @keyframes dialogFadeOut {
+
+-            from {
+
+-                opacity: 1;
+
+-                transform: translate(-50%, -50%) scale(1);
+
+-            }
+
+-            to {
+
+-                opacity: 0;
+
+-                transform: translate(-50%, -50%) scale(0.8);
+
+-            }
+
+-        }
+
+-
+
+-        .scanline {
+
+-            position: absolute;
+
+-            width: 100%;
+
+-            height: 3px;
+
+-            background: rgba(255, 255, 255, 0.608);
+
+-            animation: scan 5s linear infinite;
+
+-        }
+
+-
+
+-        .overlay {
+
+-            position: fixed;
+
+-            top: 0;
+
+-            left: 0;
+
+-            width: 100%;
+
+-            height: 100%;
+
+-            background-color: rgba(0, 0, 0, 0.984);
+
+-            color: white;
+
+-            display: flex;
+
+-            align-items: center;
+
+-            justify-content: center;
+
+-            z-index: 2000;
+
+-            display: none;
+
+-        }
+
+-
+
+-        @keyframes scan {
+
+-            0% {
+
+-                top: 0;
+
+-            }
+
+-            100% {
+
+-                top: 100%;
+
+-            }
+
+-        }
+
+-    </style>
+
+-</head>
+
+-<body>
+
+-    <div class="chat-container glitch-effect">
+
+-        <div id="loginContainer" class="login-container">
+
+-            <input type="password" id="passwordInput" placeholder="输入密钥...">
+
+-            <button id="loginButton">登录</button>
+
+-        </div>
+
+-
+
+-        <div class="login-texts">
+
+-            <div class="center-text" style="font-weight: bold; font-size: 30px;">
+
+-                注意：此密码仅限一次性使用！！
+
+-            </div>
+
+-            <div class="center-text" style="font-size: 70px;">
+
+-                -
+
+-            </div>
+
+-            <div class="bottom-text" style="font-size: 25px;">
+
+-                进入界面后他人无法再次使用密钥！
+
+-            </div>
+
+-            <div class="center-text" style="font-size: 70px;">
+
+-                -
+
+-            </div>
+
+-            <div class="bottom-text" style="font-weight: bold;font-size: 40px;">
+
+-                进入界面后请勿刷新界面！
+
+-            </div>
+
+-            <div class="bottom-text" style="font-size: 40px;">
+
+-                刷新界面将导致密钥失效！！
+
+-            </div>
+
+-            <div class="overlay" id="overlay">
+
+-                <div id="overlayMessage">网站已关闭，请稍后再试。</div>
+
+-            </div>
+
+-        </div>
+
+-        <div class="messages" id="messages" style="display: none;">
+
+-            <!-- 对话消息将显示在这里 -->
+
+-        </div>
+
+-        <div class="input-container" style="display: none;">
+
+-            <input type="text" id="messageInput" placeholder="输入消息...">
+
+-            <button id="sendButton">发送</button>
+
+-        </div>
+
+-    </div>
+
+-    <div class="dialog" id="customDialog" style="display: none;">
+
+-        <p id="dialogMessage">密码错误</p>
+
+-        <button id="dialogButton">确定</button>
+
+-    </div>
+
+-
+
+-    <script>
+
+-        const sender = 'user';
+
+-
+
+-        let lastMessageCount = 0;
+
+-        let canSend = false;
+
+-        let sessionActive = false;
+
+-        let clientUUID = localStorage.getItem('clientUUID') || '';
+
+-        let lastResetCounter = 0;
+
+-        let distortionActive = false; // Track current distortion state
+
+-
+
+-
+
+-        document.getElementById('loginButton').addEventListener('click', function() {
+
+-            const password = document.getElementById('passwordInput').value;
+
+-            login(password);
+
+-        });
+
+-
+
+-        document.getElementById('sendButton').addEventListener('click', function() {
+
+-            const input = document.getElementById('messageInput');
+
+-            const messageText = input.value.trim();
+
+-            if (messageText && canSend && sessionActive) {
+
+-                sendMessageToServer(messageText);
+
+-                input.value = '';
+
+-            }
+
+-        });
+
+-        function applyGlobalShake(minDistance, maxDistance) {
+
+-        const body = document.body;
+
+-        body.classList.add('global-shake');
+
+-
+
+-        setInterval(() => {
+
+-            const angle = Math.random() * 2 * Math.PI;
+
+-            const shakeDistance = Math.random() * (maxDistance - minDistance) + minDistance;
+
+-            body.style.setProperty('--global-shake-x', `${Math.cos(angle) * shakeDistance}px`);
+
+-            body.style.setProperty('--global-shake-y', `${Math.sin(angle) * shakeDistance}px`);
+
+-            body.style.setProperty('--global-shake-duration', `${Math.random() * 0.1 + 0.05}s`);
+
+-        }, 100); // 每隔0.1秒变换抖动属性
+
+-    }
+
+-        function createRandomBlocks(count) {
+
+-        const container = document.body;
+
+-
+
+-        for (let i = 0; i < count; i++) {
+
+-            const block = document.createElement('div');
+
+-            block.className = 'random-block';
+
+-            setRandomProperties(block);
+
+-            container.appendChild(block);
+
+-
+
+-            setInterval(() => {
+
+-                setRandomProperties(block);
+
+-                setShakeProperties(block);
+
+-            }, 500); // 每隔0.5秒变换属性
+
+-        }
+
+-    }
+
+-
+
+-    function setRandomProperties(block) {
+
+-        block.style.width = `${Math.random() * 130 + 10}px`;
+
+-        block.style.height = `${Math.random() * 130 + 10}px`;
+
+-        block.style.top = `${Math.random() * 100}vh`;
+
+-        block.style.left = `${Math.random() * 100}vw`;
+
+-        const colors = ['black', 'white', 'red', 'blue', 'green', 'yellow'];
+
+-        const primaryColors = ['black', 'white'];
+
+-        const color = Math.random() < 0.7 ? primaryColors[Math.floor(Math.random() * primaryColors.length)] : colors[Math.floor(Math.random() * colors.length)];
+
+-        
+
+-        block.style.backgroundColor = color;
+
+-        block.style.boxShadow = `0 0 10px ${colors[Math.floor(Math.random() * colors.length)]}`;
+
+-    }
+
+-
+
+-    function setShakeProperties(block) {
+
+-        const angle = Math.random() * 2 * Math.PI;
+
+-        const shakeDistance = Math.random() * 8 + 20;
+
+-        block.style.setProperty('--shake-x', `${Math.cos(angle) * shakeDistance}px`);
+
+-        block.style.setProperty('--shake-y', `${Math.sin(angle) * shakeDistance}px`);
+
+-        block.style.setProperty('--shake-duration', `${Math.random() * 0.1 + 0.01}s`);
+
+-    }
+
+-    
+
+-
+
+-
+
+-        function applyGlitchEffect() {
+
+-            const elements = document.querySelectorAll('.message, .chat-container, .login-texts, .input-container');
+
+-            elements.forEach(element => {
+
+-                element.classList.add('glitch-effect');
+
+-            });
+
+-        }
+
+-
+
+-        window.onload = function() {
+
+-    createRandomScanlines(10); // 仅创建扫描线
+
+-    removeDistortionEffects(); // 确保初始加载时没有失真效果
+
+-    // 不再默认应用特效
+
+-};
+
+-
+
+-        function createRandomScanlines(count) {
+
+-            const container = document.body;
+
+-            
+
+-            for (let i = 0; i < count; i++) {
+
+-                const line = document.createElement('div');
+
+-                line.className = 'scanline';
+
+-                line.style.top = `${Math.random() * 100}vh`;
+
+-                line.style.animationDuration = `${Math.random() * 3 + 3}s`;
+
+-                line.style.opacity = Math.random() * 0.2 + 0.05;
+
+-                container.appendChild(line);
+
+-            }
+
+-        }
+
+-
+
+-        function clearMessages() {
+
+-            const messagesContainer = document.getElementById('messages');
+
+-            messagesContainer.innerHTML = '';
+
+-            lastMessageCount = 0;
+
+-        }
+
+-
+
+-        function checkResetStatus() {
+
+-            fetch('reset-status')
+
+-                .then(response => response.json())
+
+-                .then(data => {
+
+-                    if (data.resetCounter !== lastResetCounter) {
+
+-                        clearMessages();
+
+-                        lastResetCounter = data.resetCounter;
+
+-                    }
+
+-                })
+
+-                .catch(err => console.error('检查重置状态失败', err));
+
+-        }
+
+-
+
+-        function addMessage(text, type, color = '#ffffff', fontSize = '16px', bold = false) {
+
+-            const messagesContainer = document.getElementById('messages');
+
+-            const messageElement = document.createElement('div');
+
+-            messageElement.classList.add('message', type);
+
+-            messageElement.textContent = text;
+
+-            messageElement.style.color = color;
+
+-            messageElement.style.fontSize = fontSize;
+
+-            messageElement.style.fontWeight = bold ? 'bold' : 'normal';
+
+-            messagesContainer.appendChild(messageElement);
+
+-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+-        }
+
+-
+
+-        function sendMessageToServer(message) {
+
+-            fetch('send', {
+
+-                method: 'POST',
+
+-                headers: {
+
+-                    'Content-Type': 'application/json'
+
+-                },
+
+-                body: JSON.stringify({ message, sender, clientUUID })
+
+-            })
+
+-            .then(response => response.json())
+
+-            .then(data => {
+
+-                if (data.success) {
+
+-                    addMessage(message, sender);
+
+-                }
+
+-            })
+
+-            .catch(err => console.error('发送失败', err));
+
+-        }
+
+-
+
+-        function fetchMessages() {
+
+-            fetch('messages')
+
+-                .then(response => response.json())
+
+-                .then(data => {
+
+-                    const messagesContainer = document.getElementById('messages');
+
+-                    data.forEach((msg, index) => {
+
+-                        if (index >= lastMessageCount) {
+
+-                            const messageElement = document.createElement('div');
+
+-                            messageElement.classList.add('message', msg.sender);
+
+-                            messageElement.textContent = msg.text;
+
+-                            messageElement.style.color = msg.color || '#ffffff';
+
+-                            messageElement.style.fontSize = msg.fontSize || '16px';
+
+-                            messageElement.style.fontWeight = msg.bold ? 'bold' : 'normal';
+
+-                            messagesContainer.appendChild(messageElement);
+
+-                            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+-                        }
+
+-                    });
+
+-                    lastMessageCount = data.length;
+
+-                });
+
+-        }
+
+-
+
+-        function fetchState() {
+
+-            fetch('state')
+
+-                .then(response => response.json())
+
+-                .then(data => {
+
+-                    canSend = data.canSend;
+
+-                    document.getElementById('sendButton').classList.toggle('disabled', !canSend);
+
+-                });
+
+-        }
+
+-
+
+-        function fetchSession() {
+
+-            fetch('session')
+
+-                .then(response => response.json())
+
+-                .then(data => {
+
+-                    const wasActive = sessionActive;
+
+-                    sessionActive = data.active && data.clientUUID === clientUUID;
+
+-                    if (!sessionActive && wasActive) {
+
+-                        location.reload();
+
+-                    }
+
+-                });
+
+-        }
+
+-
+
+-        function login(password) {
+
+-            fetch('login', {
+
+-                method: 'POST',
+
+-                headers: {
+
+-                    'Content-Type': 'application/json'
+
+-                },
+
+-                body: JSON.stringify({ password })
+
+-            })
+
+-            .then(response => {
+
+-                if (response.status === 429) {
+
+-                    return response.json().then(data => {
+
+-                        showDialog(data.message);
+
+-                    });
+
+-                } else if (response.status === 401) {
+
+-                    showDialog('密码错误');
+
+-                } else if (response.ok) {
+
+-                    return response.json().then(data => {
+
+-                        clientUUID = data.clientUUID;
+
+-                        localStorage.setItem('clientUUID', clientUUID);
+
+-                        document.querySelector('.input-container').style.display = 'flex';
+
+-                        document.getElementById('messages').style.display = 'block';
+
+-                        document.getElementById('loginContainer').style.display = 'none';
+
+-                        document.querySelector('.login-texts').style.display = 'none';
+
+-                        sessionActive = true;
+
+-                    });
+
+-                }
+
+-            })
+
+-            .catch(() => showDialog('网络错误，请稍后再试'));
+
+-        }
+
+-
+
+-        function showDialog(message) {
+
+-            const dialog = document.getElementById('customDialog');
+
+-            document.getElementById('dialogMessage').textContent = message;
+
+-            dialog.style.display = 'block';
+
+-            dialog.style.animation = 'dialogFadeIn 0.5s forwards';
+
+-        }
+
+-
+
+-        document.getElementById('dialogButton').addEventListener('click', function() {
+
+-            const dialog = document.getElementById('customDialog');
+
+-            dialog.style.animation = 'dialogFadeOut 0.5s forwards';
+
+-            setTimeout(() => {
+
+-                dialog.style.display = 'none';
+
+-            }, 500);
+
+-        });
+
+-
+
+-        function checkSiteStatus() {
+
+-            fetch('site-status')
+
+-                .then(response => response.json())
+
+-                .then(data => {
+
+-                    console.log('Site status:', data);
+
+-                    const overlay = document.getElementById('overlay');
+
+-                    const overlayMessage = document.getElementById('overlayMessage');
+
+-                    if (data.closed) {
+
+-                        overlayMessage.textContent = data.message;
+
+-                        overlay.style.display = 'flex';
+
+-                    } else {
+
+-                        overlay.style.display = 'none';
+
+-                    }
+
+-                })
+
+-                .catch(err => console.error('检查网站状态失败', err));
+
+-        }
+
+-
+
+-        function applyDistortionEffects() {
+
+-    document.body.classList.add('global-shake');
+
+-    createRandomBlocks(15);
+
+-    applyGlitchEffect();
+
+-    applyGlobalShake(5, 15); // Add this line to activate global shake with specified min and max distances
+
+-}
+
+-function removeDistortionEffects() {
+
+-    document.body.classList.remove('global-shake');
+
+-    document.querySelectorAll('.random-block').forEach(block => block.remove());
+
+-    document.querySelectorAll('.glitch-effect').forEach(element => element.classList.remove('glitch-effect'));
+
+-}
+
+-
+
+-        function checkDistortionStatus() {
+
+-    fetch('distortion-status')
+
+-        .then(response => response.json())
+
+-        .then(data => {
+
+-            if (data.enabled && !distortionActive) {
+
+-                // If distortion is enabled and not currently active, apply effects
+
+-                applyDistortionEffects();
+
+-                distortionActive = true;
+
+-            } else if (!data.enabled && distortionActive) {
+
+-                // If distortion is disabled and currently active, remove effects
+
+-                removeDistortionEffects();
+
+-                distortionActive = false;
+
+-            }
+
+-        })
+
+-        .catch(err => console.error('检查失真状态失败', err));
+
+-}
+
+-    // 修改定时器逻辑
+
+-    setInterval(() => {
+
+-        checkDistortionStatus();
+
+-        fetchState();
+
+-        fetchSession();
+
+-        checkResetStatus();
+
+-        checkSiteStatus();
+
+-        
+
+-        // 仅在登录后获取消息
+
+-        if (sessionActive) {
+
+-            fetchMessages();
+
+-        }
+
+-    }, 1000);
+
+-    </script>
+
+-</body>
+
+-</html>
+
++Connection Error: ConnectTimeout
