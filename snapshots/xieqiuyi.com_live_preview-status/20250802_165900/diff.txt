@@ -1,0 +1,5 @@
+--- old
++++ new
+@@ -1 +1 @@
+-{"closed":true,"message":"关键字:0000"}
++{"closed":false,"message":"预览功能已关闭。"}
