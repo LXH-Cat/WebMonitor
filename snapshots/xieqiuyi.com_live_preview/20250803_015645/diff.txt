@@ -1,0 +1,669 @@
+--- old
++++ new
+@@ -1 +1,333 @@
+-Connection Error: ConnectTimeout
++<!DOCTYPE html>
+
++<html lang="zh-CN">
+
++<head>
+
++    <meta charset="viewport" content="width=device-width, initial-scale=1.0">
+
++    <title>预览消息</title>
+
++    <style>
+
++        /* Existing styles */
+
++        
+
++        @keyframes randomBlock {
+
++            0%, 100% {
+
++                transform: translate(0, 0);
+
++            }
+
++            50% {
+
++                transform: translate(var(--shake-x), var(--shake-y));
+
++            }
+
++        }
+
++
+
++        .random-block {
+
++            position: absolute;
+
++            z-index: 3;
+
++            animation: randomBlock var(--shake-duration) infinite;
+
++            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+
++        }
+
++
+
++        @keyframes globalShake {
+
++            0%, 100% {
+
++                transform: translate(0, 0);
+
++            }
+
++            50% {
+
++                transform: translate(var(--global-shake-x), var(--global-shake-y));
+
++            }
+
++        }
+
++
+
++        .global-shake {
+
++            animation: globalShake var(--global-shake-duration) infinite;
+
++        }
+
++
+
++        @keyframes textGlitch {
+
++            0%, 100% {
+
++                text-shadow: 2px 0 red, -2px 0 blue;
+
++            }
+
++            50% {
+
++                text-shadow: -2px 0 red, 2px 0 blue;
+
++            }
+
++        }
+
++
+
++        .glitch-effect {
+
++            animation: textGlitch 0.2s infinite;
+
++        }
+
++
+
++        body {
+
++            background-color: black;
+
++            color: white;
+
++            display: flex;
+
++            align-items: center;
+
++            justify-content: center;
+
++            height: 100vh;
+
++            margin: 0;
+
++            font-family: Arial, sans-serif;
+
++            overflow: hidden;
+
++            position: relative;
+
++        }
+
++        .chat-container {
+
++            width: 80%;
+
++            max-width: 600px;
+
++            height: 70vh;
+
++            background-color: black;
+
++            border: 2px solid white;
+
++            border-radius: 10px;
+
++            display: flex;
+
++            flex-direction: column;
+
++            overflow: hidden;
+
++            padding: 10px;
+
++            box-sizing: border-box;
+
++            z-index: 1;
+
++        }
+
++        .messages {
+
++            flex: 1;
+
++            padding: 10px;
+
++            overflow-y: auto;
+
++            scroll-behavior: smooth;
+
++        }
+
++        .messages::-webkit-scrollbar {
+
++            width: 7px;
+
++            background-color: rgba(0, 0, 0, 0.2);
+
++        }
+
++        .messages::-webkit-scrollbar-thumb {
+
++            background-color: rgb(255, 255, 255);
+
++            border-radius: 20px;
+
++        }
+
++        .message {
+
++            margin-bottom: 10px;
+
++            padding: 10px;
+
++            border-radius: 5px;
+
++            border: 2px solid white;
+
++            max-width: 70%;
+
++            word-wrap: break-word;
+
++            opacity: 0;
+
++            transform: translateY(20px);
+
++            animation: fadeInUp 0.5s forwards;
+
++        }
+
++        .message.user {
+
++            background-color: black;
+
++            color: white;
+
++            margin-left: auto;
+
++            text-align: right;
+
++        }
+
++        .message.admin {
+
++            background-color: black;
+
++            color: white;
+
++            margin-right: auto;
+
++            text-align: left;
+
++        }
+
++        .overlay {
+
++            position: fixed;
+
++            top: 0;
+
++            left: 0;
+
++            width: 100%;
+
++            height: 100%;
+
++            background-color: rgba(0, 0, 0, 0.9);
+
++            color: white;
+
++            display: flex;
+
++            align-items: center;
+
++            justify-content: center;
+
++            z-index: 2000;
+
++            display: none;
+
++        }
+
++        @keyframes fadeInUp {
+
++            to {
+
++                opacity: 1;
+
++                transform: translateY(0);
+
++            }
+
++        }
+
++        /* Scanning line effect */
+
++        .scanline {
+
++            position: absolute;
+
++            width: 100%;
+
++            height: 3px;
+
++            background: rgba(255, 255, 255, 0.608);
+
++            animation: scan 5s linear infinite;
+
++        }
+
++        @keyframes scan {
+
++            0% {
+
++                top: 0;
+
++            }
+
++            100% {
+
++                top: 100%;
+
++            }
+
++        }
+
++    </style>
+
++</head>
+
++<body>
+
++    <div class="chat-container">
+
++        <div class="messages" id="messages">
+
++            <!-- Messages will be displayed here -->
+
++        </div>
+
++    </div>
+
++    <div class="overlay" id="previewOverlay">
+
++        <div id="previewOverlayMessage">预览功能已关闭。</div>
+
++    </div>
+
++
+
++    <script>
+
++    let lastMessageCount = 0;
+
++    let lastResetCounter = 0;
+
++    let distortionActive = false; // Track current distortion state
+
++
+
++    function fetchMessages() {
+
++        fetch('messages', {
+
++            headers: {
+
++                'User-Agent': 'Preview' // Custom header to identify preview requests
+
++            }
+
++        })
+
++        .then(response => response.json())
+
++        .then(data => {
+
++            const messagesContainer = document.getElementById('messages');
+
++            if (data.length > lastMessageCount) {
+
++                // 只添加新消息
+
++                data.slice(lastMessageCount).forEach(msg => {
+
++                    const messageElement = document.createElement('div');
+
++                    messageElement.classList.add('message', msg.sender);
+
++                    messageElement.textContent = msg.text;
+
++                    messageElement.style.color = msg.color || '#ffffff';
+
++                    messageElement.style.fontSize = msg.fontSize || '16px';
+
++                    messageElement.style.fontWeight = msg.bold ? 'bold' : 'normal';
+
++                    messagesContainer.appendChild(messageElement);
+
++                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
++                });
+
++                lastMessageCount = data.length;
+
++            }
+
++        });
+
++    }
+
++
+
++    function checkPreviewStatus() {
+
++        fetch('preview-status')
+
++            .then(response => response.json())
+
++            .then(data => {
+
++                const overlay = document.getElementById('previewOverlay');
+
++                const overlayMessage = document.getElementById('previewOverlayMessage');
+
++                if (data.closed) {
+
++                    overlayMessage.textContent = data.message;
+
++                    overlay.style.display = 'flex';
+
++                    document.getElementById('messages').innerHTML = ''; // Clear messages
+
++                    lastMessageCount = 0; // Reset message count
+
++                } else {
+
++                    overlay.style.display = 'none';
+
++                }
+
++            });
+
++    }
+
++
+
++    function checkResetStatus() {
+
++        fetch('reset-status')
+
++            .then(response => response.json())
+
++            .then(data => {
+
++                if (data.resetCounter !== lastResetCounter) {
+
++                    document.getElementById('messages').innerHTML = ''; // Clear messages
+
++                    lastMessageCount = 0; // Reset message count
+
++                    lastResetCounter = data.resetCounter;
+
++                }
+
++            });
+
++    }
+
++
+
++    function applyGlobalShake(minDistance, maxDistance) {
+
++        const body = document.body;
+
++        body.classList.add('global-shake');
+
++
+
++        setInterval(() => {
+
++            const angle = Math.random() * 2 * Math.PI;
+
++            const shakeDistance = Math.random() * (maxDistance - minDistance) + minDistance;
+
++            body.style.setProperty('--global-shake-x', `${Math.cos(angle) * shakeDistance}px`);
+
++            body.style.setProperty('--global-shake-y', `${Math.sin(angle) * shakeDistance}px`);
+
++            body.style.setProperty('--global-shake-duration', `${Math.random() * 0.1 + 0.05}s`);
+
++        }, 100);
+
++    }
+
++
+
++    function createRandomBlocks(count) {
+
++        const container = document.body;
+
++
+
++        for (let i = 0; i < count; i++) {
+
++            const block = document.createElement('div');
+
++            block.className = 'random-block';
+
++            setRandomProperties(block);
+
++            container.appendChild(block);
+
++
+
++            setInterval(() => {
+
++                setRandomProperties(block);
+
++                setShakeProperties(block);
+
++            }, 500);
+
++        }
+
++    }
+
++
+
++    function setRandomProperties(block) {
+
++        block.style.width = `${Math.random() * 130 + 10}px`;
+
++        block.style.height = `${Math.random() * 130 + 10}px`;
+
++        block.style.top = `${Math.random() * 100}vh`;
+
++        block.style.left = `${Math.random() * 100}vw`;
+
++        const colors = ['black', 'white', 'red', 'blue', 'green', 'yellow'];
+
++        const primaryColors = ['black', 'white'];
+
++        const color = Math.random() < 0.7 ? primaryColors[Math.floor(Math.random() * primaryColors.length)] : colors[Math.floor(Math.random() * colors.length)];
+
++        
+
++        block.style.backgroundColor = color;
+
++        block.style.boxShadow = `0 0 10px ${colors[Math.floor(Math.random() * colors.length)]}`;
+
++    }
+
++
+
++    function setShakeProperties(block) {
+
++        const angle = Math.random() * 2 * Math.PI;
+
++        const shakeDistance = Math.random() * 8 + 20;
+
++        block.style.setProperty('--shake-x', `${Math.cos(angle) * shakeDistance}px`);
+
++        block.style.setProperty('--shake-y', `${Math.sin(angle) * shakeDistance}px`);
+
++        block.style.setProperty('--shake-duration', `${Math.random() * 0.1 + 0.01}s`);
+
++    }
+
++
+
++    function applyGlitchEffect() {
+
++        const elements = document.querySelectorAll('.message, .chat-container');
+
++        elements.forEach(element => {
+
++            element.classList.add('glitch-effect');
+
++        });
+
++    }
+
++
+
++    function applyDistortionEffects() {
+
++        applyGlobalShake(1, 5);
+
++        createRandomBlocks(15);
+
++        applyGlitchEffect();
+
++    }
+
++
+
++    function removeDistortionEffects() {
+
++        document.body.classList.remove('global-shake');
+
++        document.querySelectorAll('.random-block').forEach(block => block.remove());
+
++        document.querySelectorAll('.glitch-effect').forEach(element => element.classList.remove('glitch-effect'));
+
++    }
+
++
+
++    function checkDistortionStatus() {
+
++    fetch('distortion-status')
+
++        .then(response => response.json())
+
++        .then(data => {
+
++            if (data.enabled && !distortionActive) {
+
++                // If distortion is enabled and not currently active, apply effects
+
++                applyDistortionEffects();
+
++                distortionActive = true;
+
++            } else if (!data.enabled && distortionActive) {
+
++                // If distortion is disabled and currently active, remove effects
+
++                removeDistortionEffects();
+
++                distortionActive = false;
+
++            }
+
++        })
+
++        .catch(err => console.error('检查失真状态失败', err));
+
++}
+
++
+
++
+
++    window.onload = function() {
+
++        createRandomScanlines(10); // 调整数量以改变密度
+
++        checkDistortionStatus(); // 检查并应用失真效果
+
++    };
+
++
+
++    function createRandomScanlines(count) {
+
++        const container = document.body;
+
++        
+
++        for (let i = 0; i < count; i++) {
+
++            const line = document.createElement('div');
+
++            line.className = 'scanline';
+
++            line.style.top = `${Math.random() * 100}vh`;
+
++            line.style.animationDuration = `${Math.random() * 3 + 3}s`;
+
++            line.style.opacity = Math.random() * 0.2 + 0.05;
+
++            container.appendChild(line);
+
++        }
+
++    }
+
++
+
++    setInterval(fetchMessages, 1000);
+
++    setInterval(checkPreviewStatus, 1000);
+
++    setInterval(checkResetStatus, 1000);
+
++    setInterval(checkDistortionStatus, 1000); // 每秒检查一次失真状态
+
++    </script>
+
++</body>
+
++</html>

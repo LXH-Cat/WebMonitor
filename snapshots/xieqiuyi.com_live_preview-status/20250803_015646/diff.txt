@@ -1,0 +1,5 @@
+--- old
++++ new
+@@ -1 +1 @@
+-Connection Error: ConnectTimeout
++{"closed":false,"message":"预览功能已关闭。"}
