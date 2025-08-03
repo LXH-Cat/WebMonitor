@@ -1,0 +1,746 @@
+--- old
++++ new
+@@ -1,371 +1 @@
+-<!DOCTYPE html>
+
+-<html lang="zh-CN">
+
+-<head>
+
+-    <meta charset="UTF-8">
+
+-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+-    <title>提交信息表单</title>
+
+-    <style>
+
+-        body {
+
+-            background-color: black;
+
+-            color: white;
+
+-            display: flex;
+
+-            flex-direction: column;
+
+-            align-items: center;
+
+-            justify-content: center;
+
+-            height: 100vh;
+
+-            margin: 0;
+
+-            font-family: Arial, sans-serif;
+
+-            overflow: hidden;
+
+-            position: relative;
+
+-        }
+
+-        .container {
+
+-            position: relative;
+
+-            z-index: 1;
+
+-            transition: opacity 0.5s ease-out;
+
+-        }
+
+-        .container.fade {
+
+-            opacity: 0.2;
+
+-        }
+
+-        form {
+
+-            display: flex;
+
+-            flex-direction: column;
+
+-            align-items: center;
+
+-            background-color: black;
+
+-            padding: 20px;
+
+-            border-radius: 10px;
+
+-            border: 2px solid white;
+
+-        }
+
+-        h1 {
+
+-            margin-bottom: 20px;
+
+-        }
+
+-        input[type="text"] {
+
+-            padding: 10px;
+
+-            margin-bottom: 20px;
+
+-            border: 2px solid white;
+
+-            border-radius: 5px;
+
+-            width: 200px;
+
+-            text-align: center;
+
+-            background-color: black;
+
+-            color: white;
+
+-        }
+
+-        button {
+
+-            padding: 10px 20px;
+
+-            border: 2px solid white;
+
+-            border-radius: 5px;
+
+-            background-color: black;
+
+-            color: white;
+
+-            cursor: pointer;
+
+-            font-size: 16px;
+
+-        }
+
+-        button:hover {
+
+-            background-color: #222;
+
+-        }
+
+-        #popup, #confirmPopup {
+
+-            position: fixed;
+
+-            top: 50%;
+
+-            left: 50%;
+
+-            transform: translate(-50%, 10%);
+
+-            background-color: black;
+
+-            border: 2px solid white;
+
+-            border-radius: 10px;
+
+-            padding: 20px;
+
+-            color: white;
+
+-            text-align: center;
+
+-            z-index: 10;
+
+-            opacity: 0;
+
+-            transition: transform 0.5s cubic-bezier(0.25, 0.1, 0.25, 1), opacity 0.5s ease-out;
+
+-            pointer-events: none;
+
+-        }
+
+-        #popup.show, #confirmPopup.show {
+
+-            transform: translate(-50%, -50%);
+
+-            opacity: 1;
+
+-            pointer-events: auto;
+
+-        }
+
+-        #nameList {
+
+-            margin-top: 20px;
+
+-            text-align: center;
+
+-        }
+
+-        #nameList h2 {
+
+-            margin-bottom: 10px;
+
+-        }
+
+-        #nameList ul {
+
+-            list-style-type: none;
+
+-            padding: 0;
+
+-        }
+
+-        #nameList li {
+
+-            margin-bottom: 5px;
+
+-        }
+
+-        .line {
+
+-            position: absolute;
+
+-            width: 2px;
+
+-            height: 50px;
+
+-            background: rgba(255, 255, 255, 0.412);
+
+-            opacity: 1;
+
+-            animation: moveLine 5s linear forwards;
+
+-        }
+
+-        @keyframes moveLine {
+
+-            0% {
+
+-                opacity: 1;
+
+-                transform: translateY(0);
+
+-            }
+
+-            90% {
+
+-                opacity: 1;
+
+-                transform: translateY(200vh);
+
+-            }
+
+-            100% {
+
+-                opacity: 0;
+
+-            }
+
+-        }
+
+-        .scanline {
+
+-            position: absolute;
+
+-            width: 100%;
+
+-            height: 2px;
+
+-            background: rgba(255, 255, 255, 0.1);
+
+-            top: 0;
+
+-            animation: scan 5s linear infinite;
+
+-        }
+
+-        @keyframes scan {
+
+-            0% {
+
+-                top: 0;
+
+-            }
+
+-            100% {
+
+-                top: 100%;
+
+-            }
+
+-        }
+
+-        .circle {
+
+-            position: absolute;
+
+-            top: 50%;
+
+-            left: 50%;
+
+-            width: 700px;
+
+-            height: 700px;
+
+-            border: 2px solid rgba(255, 253, 253, 0.425);
+
+-            border-radius: 50%;
+
+-            transform: translate(-50%, -50%);
+
+-            animation: shake 0.1s infinite;
+
+-        }
+
+-        @keyframes shake {
+
+-            0% { transform: translate(-50%, -50%) translate(0, 0); }
+
+-            25% { transform: translate(-50%, -50%) translate(2px, 2px); }
+
+-            50% { transform: translate(-50%, -50%) translate(-2px, -2px); }
+
+-            75% { transform: translate(-50%, -50%) translate(2px, -2px); }
+
+-            100% { transform: translate(-50%, -50%) translate(-2px, 2px); }
+
+-        }
+
+-        #downloadPopup {
+
+-    position: fixed;
+
+-    top: 50%;
+
+-    left: 50%;
+
+-    transform: translate(-50%, -50%);
+
+-    background-color: black;
+
+-    border: 2px solid white;
+
+-    border-radius: 10px;
+
+-    padding: 20px;
+
+-    color: white;
+
+-    text-align: center;
+
+-    z-index: 10;
+
+-    opacity: 0;
+
+-    transition: transform 0.5s cubic-bezier(0.25, 0.1, 0.25, 1), opacity 0.5s ease-out;
+
+-    pointer-events: none;
+
+-}
+
+-#downloadPopup.show {
+
+-    transform: translate(-50%, -50%);
+
+-    opacity: 1;
+
+-    pointer-events: auto;
+
+-}
+
+-    </style>
+
+-</head>
+
+-<body>
+
+-    <div class="container" id="content">
+
+-        <form id="nameForm">
+
+-            <h1>请输入你的名字（信息）</h1>
+
+-            <div id="keywordStats">已发现关键词：0/0 特殊关键词：0/0</div>
+
+-            <input type="text" id="nameInput" maxlength="36" required>
+
+-            <button type="submit">提交</button>
+
+-        </form>
+
+-        <div id="nameList">
+
+-            <h2>名字（信息）展示栏</h2>
+
+-                
+
+-            <ul id="names"></ul>
+
+-        </div>
+
+-        
+
+-    </div>
+
+-    <div id="downloadPopup">
+
+-        <p>文件正在下载，请不要关闭或刷新浏览器!！(下载时间不超10分钟)</p>
+
+-        <button id="closeDownloadPopup">确定</button>
+
+-    </div>
+
+-    <div id="popup">
+
+-        <p id="popupMessage"></p>
+
+-        <button id="closePopup">关闭</button>
+
+-    </div>
+
+-
+
+-    <div id="confirmPopup">
+
+-        <p>确认提交吗？（提交的名字（信息）会展示在下方）（3小时内无法再次提交）</p>
+
+-        <button id="confirmButton">确定</button>
+
+-        <button id="cancelButton">取消</button>
+
+-    </div>
+
+-
+
+-    <div class="circle"></div>
+
+-
+
+-    <script>
+
+-   document.getElementById('nameForm').addEventListener('submit', function(event) {
+
+-        event.preventDefault();
+
+-        const name = document.getElementById('nameInput').value;
+
+-        checkName(name);
+
+-    });
+
+-
+
+-    function checkName(name) {
+
+-    fetch('check', {
+
+-        method: 'POST',
+
+-        headers: {
+
+-            'Content-Type': 'application/json'
+
+-        },
+
+-        body: JSON.stringify({ name: name })
+
+-    })
+
+-    .then(response => {
+
+-        if (response.ok && response.headers.get('Content-Disposition')) {
+
+-            showDownloadPopup(); // Show the download popup
+
+-
+
+-            const disposition = response.headers.get('Content-Disposition');
+
+-            const filename = disposition.match(/filename="(.+)"/)[1];
+
+-
+
+-            return response.blob().then(blob => {
+
+-                const url = window.URL.createObjectURL(blob);
+
+-                const a = document.createElement('a');
+
+-                a.style.display = 'none';
+
+-                a.href = url;
+
+-                a.download = filename; // Use the original filename
+
+-                document.body.appendChild(a);
+
+-                a.click();
+
+-                window.URL.revokeObjectURL(url);
+
+-            });
+
+-        } else {
+
+-            return response.json().then(data => {
+
+-                if (data.needsConfirmation) {
+
+-                    showConfirmPopup(name);
+
+-                } else {
+
+-                    showPopup(data.message);
+
+-                }
+
+-            });
+
+-        }
+
+-    })
+
+-    .catch(error => showPopup(error.message));
+
+-}
+
+-
+
+-function showDownloadPopup() {
+
+-    const downloadPopup = document.getElementById('downloadPopup');
+
+-    const content = document.getElementById('content');
+
+-    content.classList.add('fade');
+
+-    downloadPopup.classList.add('show');
+
+-
+
+-    document.getElementById('closeDownloadPopup').onclick = function() {
+
+-        downloadPopup.classList.remove('show');
+
+-        content.classList.remove('fade');
+
+-    };
+
+-}
+
+-
+
+-    
+
+-        function showConfirmPopup(name) {
+
+-            const confirmPopup = document.getElementById('confirmPopup');
+
+-            const content = document.getElementById('content');
+
+-            content.classList.add('fade');
+
+-            confirmPopup.classList.add('show');
+
+-    
+
+-            document.getElementById('confirmButton').onclick = function() {
+
+-                confirmPopup.classList.remove('show');
+
+-                content.classList.remove('fade');
+
+-                submitName(name);
+
+-            };
+
+-    
+
+-            document.getElementById('cancelButton').onclick = function() {
+
+-                confirmPopup.classList.remove('show');
+
+-                content.classList.remove('fade');
+
+-            };
+
+-        }
+
+-    
+
+-        function submitName(name) {
+
+-            fetch('submit', {
+
+-                method: 'POST',
+
+-                headers: {
+
+-                    'Content-Type': 'application/json'
+
+-                },
+
+-                body: JSON.stringify({ name: name })
+
+-            })
+
+-            .then(response => response.json())
+
+-            .then(data => {
+
+-                showPopup(data.message);
+
+-                loadNames();
+
+-                updateKeywordStats();
+
+-            })
+
+-            .catch(error => showPopup(error.message));
+
+-        }
+
+-    
+
+-        function showPopup(message) {
+
+-            const popup = document.getElementById('popup');
+
+-            const popupMessage = document.getElementById('popupMessage');
+
+-            const content = document.getElementById('content');
+
+-            popupMessage.textContent = message;
+
+-            content.classList.add('fade');
+
+-            popup.classList.remove('hide');
+
+-            popup.classList.add('show');
+
+-        }
+
+-    
+
+-        document.getElementById('closePopup').addEventListener('click', function() {
+
+-            const popup = document.getElementById('popup');
+
+-            const content = document.getElementById('content');
+
+-            popup.classList.remove('show');
+
+-            popup.classList.add('hide');
+
+-            content.classList.remove('fade');
+
+-        });
+
+-    
+
+-        function loadNames() {
+
+-            fetch('names')
+
+-                .then(response => response.json())
+
+-                .then(names => {
+
+-                    const namesList = document.getElementById('names');
+
+-                    namesList.innerHTML = '';
+
+-                    names.forEach(name => {
+
+-                        const li = document.createElement('li');
+
+-                        li.textContent = name;
+
+-                        namesList.appendChild(li);
+
+-                    });
+
+-                })
+
+-                .catch(error => console.error('Error:', error));
+
+-        }
+
+-    
+
+-        function updateKeywordStats() {
+
+-    fetch('keyword-stats')
+
+-        .then(response => response.json())
+
+-        .then(stats => {
+
+-            document.getElementById('keywordStats').innerText = 
+
+-                `已发现关键词：${stats.triggeredCount}/${stats.totalKeywords} 特殊关键词：${stats.triggeredSpecialCount}/${stats.totalSpecialKeywords}`;
+
+-        })
+
+-        .catch(error => console.error('Error:', error));
+
+-}
+
+-    
+
+-        window.onload = function() {
+
+-            loadNames();
+
+-            updateKeywordStats();
+
+-            createScanlines(5);
+
+-            setInterval(createLines, 1000);
+
+-        };
+
+-    
+
+-        function createLines() {
+
+-            const line = document.createElement('div');
+
+-            line.className = 'line';
+
+-            line.style.top = `${Math.random() * 100}vh`;
+
+-            line.style.left = `${Math.random() * 100}vw`;
+
+-            document.body.appendChild(line);
+
+-            setTimeout(() => line.remove(), 5000);
+
+-        }
+
+-    
+
+-        function createScanlines(count) {
+
+-            for (let i = 0; i < count; i++) {
+
+-                const scanline = document.createElement('div');
+
+-                scanline.className = 'scanline';
+
+-                scanline.style.animationDelay = `${Math.random() * 5}s`;
+
+-                document.body.appendChild(scanline);
+
+-            }
+
+-        }
+
+-    </script>
+
+-    
+
+-</body>
+
+-</html>
+
++连接错误: 重试 3 次后依然失败 (ConnectTimeout)
