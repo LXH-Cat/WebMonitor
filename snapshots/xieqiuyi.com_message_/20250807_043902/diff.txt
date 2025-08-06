@@ -1,0 +1,5 @@
+--- old
++++ new
+@@ -1 +1 @@
+-HTTP Error: 404 Not Found
++连接错误: 重试 3 次后依然失败 (ConnectTimeout)
