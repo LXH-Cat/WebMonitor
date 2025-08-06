@@ -5,7 +5,7 @@ settings:
   # 当获取内容失败（如连接超时）时的重试次数。
   retry_count: 3
   # 每次重试之间的等待时间（秒）。
-  retry_delay_seconds: 5
+  retry_delay_seconds: 30
 
 # 监控目标列表
 targets:
