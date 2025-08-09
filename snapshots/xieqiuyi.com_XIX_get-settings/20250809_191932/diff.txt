@@ -1,0 +1,5 @@
+--- old
++++ new
+@@ -1 +1 @@
+-{"ipRestriction":true,"restrictionTime":120,"successMessage":"顺序密码为:000104110706080302050910","enablePasswordVerification":true,"disabledMessage":"解密暂未开始100010"}
++HTTP Error: 404 Not Found
