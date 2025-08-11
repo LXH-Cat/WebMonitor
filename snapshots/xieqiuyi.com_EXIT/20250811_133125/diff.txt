@@ -1,0 +1,165 @@
+--- old
++++ new
+@@ -1 +1,81 @@
+-HTTP Error: 423 Locked
++<!DOCTYPE html>
+
++<html lang="zh-CN">
+
++<head>
+
++    <meta charset="UTF-8">
+
++    <title>欢迎页面</title>
+
++    <style>
+
++        body {
+
++  background-color: #000;
+
++  color: #fff;
+
++  min-height: 100vh;
+
++  font-family: 'Digital', 'Courier New', monospace;
+
++  overflow: hidden;
+
++  position: relative;
+
++  line-height: 1.6;
+
++}
+
++        /* === 自定义字体 === */
+
++        @font-face {
+
++  font-family: 'Digital';
+
++  src: url('../ttf/xieguage.ttf') format('truetype');
+
++  font-weight: normal;
+
++  font-style: normal;
+
++}
+
++
+
++        h1 {
+
++            font-weight: bold;
+
++        }
+
++
+
++        table {
+
++            width: 100%;
+
++            border-collapse: collapse;
+
++            margin-top: 20px;
+
++        }
+
++
+
++        th, td {
+
++            border: 1px solid #ffffff;
+
++            padding: 8px;
+
++            text-align: center;
+
++        }
+
++
+
++        a {
+
++            margin-right: 15px;
+
++            text-decoration: none;
+
++            color: rgb(255, 0, 0);
+
++        }
+
++    </style>
+
++</head>
+
++<body>
+
++    <h1>欢---++——+——+迎/PPPPWO*k！</h1>
+
++    <table>
+
++        <tr>
+
++            <th>序号</th>
+
++            <th>列1</th>
+
++            <th>列2</th>
+
++            <th>列3</th>
+
++            <th>列4</th>
+
++            <th>列5</th>
+
++        </tr>
+
++        <!-- 生成8行 -->
+
++        <tr><td>1</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+
++        <tr><td>2</td><td>B</td><td>-</td><td>E</td><td>F</td><td>-</td></tr>
+
++        <tr><td>3</td><td>-</td><td>J</td><td>-</td><td>-</td><td>-</td></tr>
+
++        <tr><td>4</td><td>-</td><td>O</td><td>P</td><td>-</td><td>S</td></tr>
+
++        <tr><td>5</td><td>T</td><td>-</td><td>-</td><td>-</td><td>Z</td></tr>
+
++    </table>
+
++    <p>
+
++        <a href="#">B(2,1)</a>
+
++        <a href="#">U(5,2)</a>
+
++        <a href="#">A(1,5)</a>
+
++        <a href="#">Z(5,5)</a>
+
++    </p>   <p>
+
++        <a href="#">全选</a>
+
++        <a href="#">读取坐标</a>
+
++        <a href="#">排序</a>
+
++        <a href="#">坐标组合</a>
+
++
+
++
+
++
+
++        <a href="#">输出</a>
+
++    </p>
+
++</body>
+
++</html>
