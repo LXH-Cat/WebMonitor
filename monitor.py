@@ -72,18 +72,12 @@ def fetch_content_from_url(url, retry_count, retry_delay):
     error_state_content = f"连接错误: 重试 {retry_count} 次后依然失败 ({type(last_exception).__name__})"
     return error_state_content.encode('utf-8'), True
 
-def fetch_content_from_curl(command, retry_count, retry_delay, log_response):
-    """执行 curl 命令并获取其输出, 包含重试机制和可选的日志记录"""
+def fetch_content_from_curl(command, retry_count, retry_delay):
+    """执行 curl 命令并获取其输出, 包含重试机制"""
     last_exception = None
     for attempt in range(retry_count):
         try:
             result = subprocess.run(command, shell=True, capture_output=True, text=True, check=True, timeout=TIMEOUT)
-            
-            if log_response:
-                print("--- cURL Response ---")
-                print(result.stdout)
-                print("--- End cURL Response ---")
-
             return result.stdout.encode('utf-8'), False
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
             last_exception = e
@@ -181,7 +175,7 @@ def send_email_notification(subject, changes_list, recipients):
       .diff-box {{ background-color: #fdfdfd; padding: 15px; margin-top: 15px; border-radius: 5px; font-family: 'Courier New', Courier, monospace; font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; border: 1px solid #f0f0f0; }}
       .diff-title {{ font-family: -apple-system, sans-serif; display: block; margin-bottom: 10px; font-size: 13px; color: #333; font-weight: 600; }}
       .footer {{ margin-top: 30px; font-size: 12px; text-align: center; color: #999999; }}
-    </style></head><body><div class="container"><div class="header">网页/API 变更监控提醒</div><div class="content">{html_body_content}</div><div class="footer"><p>此邮件由 GitHub Actions 自动发送。</p></div></div></body></html>
+    </style></head><body><div class="container"><div class="header">{subject}</div><div class="content">{html_body_content}</div><div class="footer"><p>此邮件由 GitHub Actions 自动发送。</p></div></div></body></html>
     """
 
     message = MIMEMultipart("alternative")
@@ -203,6 +197,45 @@ def send_email_notification(subject, changes_list, recipients):
     except Exception as e:
         print(f"::error::发送邮件失败: {e}")
 
+def send_manual_notification(title, body):
+    """构造并发送一条用户自定义的通知"""
+    print(f"::notice::正在发送自定义通知: {title}")
+    now_for_notification = datetime.now(CST_TZ)
+    now_str = now_for_notification.strftime('%Y-%m-%d %H:%M:%S %Z')
+    
+    # 统一 Webhook 和 Email 的内容
+    summary = f"{title}\n\n{body}"
+    
+    # 为邮件构造一个 change_list 结构
+    change_list = [{
+        "name": title,
+        "url": "手动发送",
+        "timestamp": now_str,
+        "snapshot_url": f"https://github.com/{os.environ.get('GITHUB_REPOSITORY', 'your/repo')}",
+        "diff": body
+    }]
+    
+    # Send Webhook
+    webhook_urls = os.environ.get("WEBHOOK_URL")
+    if webhook_urls:
+        send_webhook_notification(webhook_urls, now_str, summary)
+    else:
+        print("::notice::未配置 WEBHOOK_URL，跳过 Webhook 通知。")
+
+    # Send Email
+    recipients = []
+    mail_recipients_var = os.environ.get("MAIL_RECIPIENTS")
+    if mail_recipients_var:
+        recipients.extend([email.strip() for email in mail_recipients_var.split(',') if email.strip()])
+    unique_recipients = sorted(list(set(recipients)))
+    
+    if unique_recipients:
+        send_email_notification(title, change_list, unique_recipients)
+    else:
+        print("::notice::未配置 MAIL_RECIPIENTS，跳过邮件通知。")
+    
+    print("::notice::自定义通知发送流程完毕。")
+
 def main():
     """脚本主逻辑函数"""
     repo_full_name = os.environ.get("GITHUB_REPOSITORY")
@@ -218,7 +251,6 @@ def main():
             settings = config.get("settings", {})
             retry_count = settings.get("retry_count", 3)
             retry_delay = settings.get("retry_delay_seconds", 5)
-            log_curl_response = settings.get("log_curl_response", False)
     except FileNotFoundError:
         print(f"::error::错误: 未找到配置文件 {CONFIG_FILE}。")
         sys.exit(1)
@@ -246,7 +278,7 @@ def main():
             if not target_url:
                 print(f"::error::无法从 curl 命令中解析出 URL，请检查命令: [{command}]")
                 continue
-            content, is_error = fetch_content_from_curl(command, retry_count, retry_delay, log_curl_response)
+            content, is_error = fetch_content_from_curl(command, retry_count, retry_delay)
         else:
             print(f"::warning::不支持的类型 '{type}'，目标 '{name or '未命名'}' 已跳过。")
             continue
