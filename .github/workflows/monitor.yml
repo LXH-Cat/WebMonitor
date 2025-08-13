@@ -2,29 +2,40 @@
 name: Website Change Monitor
 
 on:
-  # 定时触发：使用 cron 语法，默认为 UTC+8 时区的 00:00, 06:00, 12:00, 18:00
+  # 定时触发
   schedule:
     - cron: '*/15 * * * *'
   
-  # 推送时触发：修改 config.yml 配置文件时触发该工作流
-  push:
-    paths:
-      - 'config.yml'
-
-  # 手动触发：允许你在 GitHub Actions 页面手动运行此工作流
+  # 手动触发
   workflow_dispatch:
+    inputs:
+      run_mode:
+        description: '选择运行模式'
+        required: true
+        default: '常规监控'
+        type: choice
+        options:
+        - '常规监控'
+        - '发送自定义通知'
+      notification_title:
+        description: '（仅在发送自定义通知时有效）通知标题'
+        required: false
+        default: '来自监控机器人的手动通知'
+      notification_body:
+        description: '（仅在发送自定义通知时有效）通知正文'
+        required: false
+        default: '这是一条手动发送的通知消息。'
 
 jobs:
+  # --- 常规监控任务 ---
   monitor-and-commit:
-    # 运行环境
+    # 仅在定时触发或手动选择“常规监控”时运行
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_mode == '常规监控')
     runs-on: ubuntu-latest
-    
-    # 将所有需要的 secrets 和 variables 传递给 Python 脚本作为环境变量
     env:
       # --- 敏感信息 (存放于 Secrets) ---
       WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
       SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-
       # --- 普通配置 (存放于 Variables, 方便修改) ---
       WEBHOOK_CUSTOM_PAYLOAD: ${{ vars.WEBHOOK_CUSTOM_PAYLOAD }}
       MAIL_FROM: ${{ vars.MAIL_FROM }}
@@ -33,41 +44,62 @@ jobs:
       SMTP_PORT: ${{ vars.SMTP_PORT }}
       SMTP_USER: ${{ vars.SMTP_USER }}
       MAIL_RECIPIENTS: ${{ vars.MAIL_RECIPIENTS }}
-
     steps:
-      # 步骤1：检出代码
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      # 步骤2：设置 Python 环境
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
-
-      # 步骤3：安装依赖库
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install requests pyyaml
-
-      # 步骤4：运行监控脚本
       - name: Run website monitor script
         id: monitor
         run: python monitor.py
-
-      # 步骤5：提交变更 (若有)
       - name: Commit and push if changes were found
         if: steps.monitor.outputs.changes_detected == 'true'
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
           git add snapshots/
-          # 检查是否有文件被暂存
           if ! git diff --staged --quiet; then
-            # 使用 Python 脚本生成的带有时间戳的 commit message
             git commit -m "${{ steps.monitor.outputs.commit_message }}"
             git push
           else
             echo "文件无变更，无需提交。"
           fi
+
+  # --- 发送自定义通知任务 ---
+  send-manual-notification:
+    # 仅在手动选择“发送自定义通知”时运行
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_mode == '发送自定义通知'
+    runs-on: ubuntu-latest
+    env:
+      # 同样需要所有环境变量
+      WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+      WEBHOOK_CUSTOM_PAYLOAD: ${{ vars.WEBHOOK_CUSTOM_PAYLOAD }}
+      MAIL_FROM: ${{ vars.MAIL_FROM }}
+      MAIL_SENDER_NAME: ${{ vars.MAIL_SENDER_NAME }}
+      SMTP_HOST: ${{ vars.SMTP_HOST }}
+      SMTP_PORT: ${{ vars.SMTP_PORT }}
+      SMTP_USER: ${{ vars.SMTP_USER }}
+      MAIL_RECIPIENTS: ${{ vars.MAIL_RECIPIENTS }}
+      # 传入自定义通知的内容
+      NOTIFICATION_TITLE: ${{ github.event.inputs.notification_title }}
+      NOTIFICATION_BODY: ${{ github.event.inputs.notification_body }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests pyyaml
+      - name: Send manual notification
+        run: python monitor.py --send-notification
