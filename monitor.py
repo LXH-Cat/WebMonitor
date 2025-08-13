@@ -184,7 +184,12 @@ def send_email_notification(subject, changes_list, recipients):
         message["From"] = formataddr((Header(sender_name, 'utf-8').encode(), mail_from))
     else:
         message["From"] = mail_from
-    message["To"] = formataddr((Header("监控通知接收人", 'utf-8').encode(), mail_from))
+    
+    # **FIX**: The 'To' header is for display purposes in a BCC-only email.
+    # It should be a single, valid, but generic address.
+    # Setting it to the sender's own address is a common and safe practice.
+    message["To"] = mail_from
+    
     message.attach(MIMEText(plain_body, "plain", "utf-8"))
     message.attach(MIMEText(html_template, "html", "utf-8"))
 
@@ -192,6 +197,7 @@ def send_email_notification(subject, changes_list, recipients):
         context = ssl.create_default_context()
         with smtplib.SMTP_SSL(smtp_host, int(smtp_port), context=context) as server:
             server.login(smtp_user, smtp_password)
+            # sendmail's second argument is the list of actual recipients for BCC
             server.sendmail(mail_from, recipients, message.as_string())
             print(f"邮件通知已通过 BCC 发送给 {len(recipients)} 个收件人。")
     except Exception as e:
