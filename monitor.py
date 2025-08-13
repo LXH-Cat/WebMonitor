@@ -175,7 +175,7 @@ def send_email_notification(subject, changes_list, recipients):
       .diff-box {{ background-color: #fdfdfd; padding: 15px; margin-top: 15px; border-radius: 5px; font-family: 'Courier New', Courier, monospace; font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; border: 1px solid #f0f0f0; }}
       .diff-title {{ font-family: -apple-system, sans-serif; display: block; margin-bottom: 10px; font-size: 13px; color: #333; font-weight: 600; }}
       .footer {{ margin-top: 30px; font-size: 12px; text-align: center; color: #999999; }}
-    </style></head><body><div class="container"><div class="header">网页/API 变更监控提醒</div><div class="content">{html_body_content}</div><div class="footer"><p>此邮件由 GitHub Actions 自动发送。</p></div></div></body></html>
+    </style></head><body><div class="container"><div class="header">{subject}</div><div class="content">{html_body_content}</div><div class="footer"><p>此邮件由 GitHub Actions 自动发送。</p></div></div></body></html>
     """
 
     message = MIMEMultipart("alternative")
@@ -184,11 +184,7 @@ def send_email_notification(subject, changes_list, recipients):
         message["From"] = formataddr((Header(sender_name, 'utf-8').encode(), mail_from))
     else:
         message["From"] = mail_from
-    
-    # **FIX**: Set a generic, correctly formatted "To" header for BCC.
-    # This will show "Undisclosed Recipients" or a similar generic name in the "To" field.
     message["To"] = formataddr((Header("监控通知接收人", 'utf-8').encode(), mail_from))
-    
     message.attach(MIMEText(plain_body, "plain", "utf-8"))
     message.attach(MIMEText(html_template, "html", "utf-8"))
 
@@ -196,11 +192,49 @@ def send_email_notification(subject, changes_list, recipients):
         context = ssl.create_default_context()
         with smtplib.SMTP_SSL(smtp_host, int(smtp_port), context=context) as server:
             server.login(smtp_user, smtp_password)
-            # sendmail's second argument is the list of actual recipients for BCC
             server.sendmail(mail_from, recipients, message.as_string())
             print(f"邮件通知已通过 BCC 发送给 {len(recipients)} 个收件人。")
     except Exception as e:
         print(f"::error::发送邮件失败: {e}")
+
+def send_manual_notification(title, body):
+    """构造并发送一条用户自定义的通知"""
+    print(f"::notice::正在发送自定义通知: {title}")
+    now_for_notification = datetime.now(CST_TZ)
+    now_str = now_for_notification.strftime('%Y-%m-%d %H:%M:%S %Z')
+    
+    # 统一 Webhook 和 Email 的内容
+    summary = f"{title}\n\n{body}"
+    
+    # 为邮件构造一个 change_list 结构
+    change_list = [{
+        "name": title,
+        "url": "手动发送",
+        "timestamp": now_str,
+        "snapshot_url": f"https://github.com/{os.environ.get('GITHUB_REPOSITORY', 'your/repo')}",
+        "diff": body
+    }]
+    
+    # Send Webhook
+    webhook_urls = os.environ.get("WEBHOOK_URL")
+    if webhook_urls:
+        send_webhook_notification(webhook_urls, now_str, summary)
+    else:
+        print("::notice::未配置 WEBHOOK_URL，跳过 Webhook 通知。")
+
+    # Send Email
+    recipients = []
+    mail_recipients_var = os.environ.get("MAIL_RECIPIENTS")
+    if mail_recipients_var:
+        recipients.extend([email.strip() for email in mail_recipients_var.split(',') if email.strip()])
+    unique_recipients = sorted(list(set(recipients)))
+    
+    if unique_recipients:
+        send_email_notification(title, change_list, unique_recipients)
+    else:
+        print("::notice::未配置 MAIL_RECIPIENTS，跳过邮件通知。")
+    
+    print("::notice::自定义通知发送流程完毕。")
 
 def main():
     """脚本主逻辑函数"""
@@ -358,4 +392,9 @@ def main():
                 f.write(f'commit_message={commit_message}\n')
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1 and sys.argv[1] == '--send-notification':
+        title = os.environ.get("NOTIFICATION_TITLE")
+        body = os.environ.get("NOTIFICATION_BODY")
+        send_manual_notification(title, body)
+    else:
+        main()
