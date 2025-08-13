@@ -188,8 +188,8 @@ def send_email_notification(subject, changes_list, recipients):
     # **FIX**: The 'To' header is for display purposes in a BCC-only email.
     # It should be a single, valid, but generic address.
     # Setting it to the sender's own address is a common and safe practice.
-    message["To"] = mail_from
-    
+    message["To"] = "subscribed@hk256.top"
+
     message.attach(MIMEText(plain_body, "plain", "utf-8"))
     message.attach(MIMEText(html_template, "html", "utf-8"))
 
