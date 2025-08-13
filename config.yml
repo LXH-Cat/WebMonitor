@@ -4,6 +4,8 @@ settings:
   retry_count: 3
   # 每次重试之间的等待时间（秒）。
   retry_delay_seconds: 5
+  # 是否在 Action 日志中打印 curl 命令的返回内容（用于调试）。
+  log_curl_response: false
 
 # 监控目标列表
 targets:
