@@ -30,7 +30,7 @@ MAX_DIFF_LINES = 30
 CST_TZ = timezone(timedelta(hours=8))
 
 def get_safe_filename_from_url(url):
-    # 根据URL生成一个安全的文件名
+    """根据URL生成一个安全的文件名"""
     if not url:
         return None
     try:
@@ -45,14 +45,14 @@ def get_safe_filename_from_url(url):
         return None
 
 def extract_url_from_curl(command):
-    # 从 curl 命令中提取主要的目标 URL (通常是第一个)
+    """从 curl 命令中提取主要的目标 URL (通常是第一个)"""
     urls = re.findall(r'https?://[^\s\'"]+', command)
     if urls:
         return urls[0]
     return None
 
 def fetch_content_from_url(url, retry_count, retry_delay):
-    # 从 URL 获取内容, 包含重试机制
+    """从 URL 获取内容, 包含重试机制"""
     last_exception = None
     for attempt in range(retry_count):
         try:
@@ -73,7 +73,7 @@ def fetch_content_from_url(url, retry_count, retry_delay):
     return error_state_content.encode('utf-8'), True
 
 def fetch_content_from_curl(command, retry_count, retry_delay):
-    # 执行 curl 命令并获取其输出, 包含重试机制
+    """执行 curl 命令并获取其输出, 包含重试机制"""
     last_exception = None
     for attempt in range(retry_count):
         try:
@@ -101,11 +101,11 @@ def fetch_content_from_curl(command, retry_count, retry_delay):
     return error_state_content.encode('utf-8'), True
 
 def get_content_hash(content):
-    # 计算内容的SHA-256哈希值
+    """计算内容的SHA-256哈希值"""
     return hashlib.sha256(content).hexdigest()
 
 def send_webhook_notification(webhook_urls_str, timestamp, summary):
-    # 向多个 Webhook 地址发送通知
+    """向多个 Webhook 地址发送通知"""
     if not webhook_urls_str:
         return
     urls = [url.strip() for url in webhook_urls_str.split(',') if url.strip()]
@@ -124,7 +124,7 @@ def send_webhook_notification(webhook_urls_str, timestamp, summary):
             print(f"::error::发送 Webhook 通知至 {url} 失败: {e}")
 
 def send_email_notification(subject, changes_list, recipients):
-    # 通过 BCC 向多个收件人发送单封邮件，保护隐私且高效
+    """通过 BCC 向多个收件人发送单封邮件，保护隐私且高效"""
     if not recipients:
         print("::notice::未配置任何邮件接收人，跳过邮件通知。")
         return
@@ -184,7 +184,11 @@ def send_email_notification(subject, changes_list, recipients):
         message["From"] = formataddr((Header(sender_name, 'utf-8').encode(), mail_from))
     else:
         message["From"] = mail_from
-    message["To"] = Header("监控通知接收人", 'utf-8') # 使用一个通用的显示名
+    
+    # **FIX**: Set a generic, correctly formatted "To" header for BCC.
+    # This will show "Undisclosed Recipients" or a similar generic name in the "To" field.
+    message["To"] = formataddr((Header("监控通知接收人", 'utf-8').encode(), mail_from))
+    
     message.attach(MIMEText(plain_body, "plain", "utf-8"))
     message.attach(MIMEText(html_template, "html", "utf-8"))
 
@@ -192,14 +196,14 @@ def send_email_notification(subject, changes_list, recipients):
         context = ssl.create_default_context()
         with smtplib.SMTP_SSL(smtp_host, int(smtp_port), context=context) as server:
             server.login(smtp_user, smtp_password)
-            # sendmail 的第二个参数是实际的收件人列表，实现了 BCC
+            # sendmail's second argument is the list of actual recipients for BCC
             server.sendmail(mail_from, recipients, message.as_string())
             print(f"邮件通知已通过 BCC 发送给 {len(recipients)} 个收件人。")
     except Exception as e:
         print(f"::error::发送邮件失败: {e}")
 
 def main():
-    # 脚本主逻辑函数
+    """脚本主逻辑函数"""
     repo_full_name = os.environ.get("GITHUB_REPOSITORY")
     if not repo_full_name:
         print("::warning::未找到 GITHUB_REPOSITORY 环境变量，无法生成快照链接。")
