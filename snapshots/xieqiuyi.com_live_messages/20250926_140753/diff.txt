@@ -1,0 +1,16 @@
+--- old
++++ new
+@@ -2,6 +2,7 @@
+ 错误: % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+
+                                  Dload  Upload   Total   Spent    Left  Speed
+
+ 
+
++  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+
+   0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+
+   0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+
+ curl: (60) SSL certificate problem: certificate has expired
