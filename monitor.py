@@ -366,11 +366,13 @@ def main():
             if len(diff_lines) > MAX_DIFF_LINES:
                 truncated_diff += "\n... (内容已截断，请查看快照链接获取完整差异)"
 
-            all_changes.append({
-                "name": name, "url": target_url,
-                "timestamp": now.strftime('%Y-%m-%d %H:%M:%S %Z'),
-                "snapshot_url": snapshot_url, "diff": truncated_diff
-            })
+            # 只有当需要提醒的错误或者不是错误状态时才添加到变更列表
+            if should_notify_error or not is_error:
+                all_changes.append({
+                    "name": name, "url": target_url,
+                    "timestamp": now.strftime('%Y-%m-%d %H:%M:%S %Z'),
+                    "snapshot_url": snapshot_url, "diff": truncated_diff
+                })
         elif is_error:
             # 遇到不需要提醒的错误时，不更新最新哈希值，保持上次正常状态
             print(f"::notice::{display_name} 遇到不需要提醒的错误，保持上次正常状态")
