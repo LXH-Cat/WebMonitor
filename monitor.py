@@ -51,7 +51,7 @@ def extract_url_from_curl(command):
         return urls[0]
     return None
 
-def fetch_content_from_url(url, retry_count, retry_delay, ignore_status_codes=None):
+def fetch_content_from_url(url, retry_count, retry_delay, notify_status_codes=None):
     """从 URL 获取内容, 包含重试机制"""
     last_exception = None
     last_status_code = None
@@ -259,7 +259,7 @@ def main():
             settings = config.get("settings", {})
             retry_count = settings.get("retry_count", 3)
             retry_delay = settings.get("retry_delay_seconds", 5)
-            ignore_status_codes = settings.get("ignore_http_status_codes", [])
+            notify_status_codes = settings.get("notify_http_status_codes", [])
     except FileNotFoundError:
         print(f"::error::错误: 未找到配置文件 {CONFIG_FILE}。")
         sys.exit(1)
@@ -277,7 +277,7 @@ def main():
             if not target_url:
                 print(f"::warning::类型为 'url' 的目标缺少 'value' 字段，已跳过。")
                 continue
-            content, is_error, status_code = fetch_content_from_url(target_url, retry_count, retry_delay, ignore_status_codes)
+            content, is_error, status_code = fetch_content_from_url(target_url, retry_count, retry_delay, notify_status_codes)
         elif type == "curl":
             command = target.get("command")
             if not command:
@@ -310,13 +310,13 @@ def main():
             with open(latest_hash_file, "r", encoding="utf-8") as f:
                 last_hash = f.read().strip()
 
-        # 检查是否需要忽略本次错误
-        should_ignore_error = False
-        if is_error and status_code and ignore_status_codes and status_code in ignore_status_codes:
-            should_ignore_error = True
-            print(f"::notice title=忽略错误::{display_name} 遇到可忽略的HTTP状态码 {status_code}，跳过保存和通知")
+        # 检查是否需要发送错误通知
+        should_notify_error = False
+        if is_error and status_code and notify_status_codes and status_code in notify_status_codes:
+            should_notify_error = True
+            print(f"::notice title=需要提醒的错误::{display_name} 遇到需要提醒的HTTP状态码 {status_code}，将发送通知")
 
-        if current_hash != last_hash and not should_ignore_error:
+        if current_hash != last_hash or should_notify_error:
             print(f"::notice title=检测到变化::{display_name}")
             now = datetime.now(CST_TZ)
             timestamp_str = now.strftime("%Y%m%d_%H%M%S")
@@ -370,9 +370,9 @@ def main():
                 "timestamp": now.strftime('%Y-%m-%d %H:%M:%S %Z'),
                 "snapshot_url": snapshot_url, "diff": truncated_diff
             })
-        elif should_ignore_error:
-            # 忽略错误时，不更新最新哈希值，保持上次正常状态
-            print(f"::notice::{display_name} 遇到可忽略错误，保持上次正常状态")
+        elif is_error:
+            # 遇到不需要提醒的错误时，不更新最新哈希值，保持上次正常状态
+            print(f"::notice::{display_name} 遇到不需要提醒的错误，保持上次正常状态")
         else:
             print(f"::notice title=无变化::{display_name}")
 

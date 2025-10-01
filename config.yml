@@ -6,8 +6,8 @@ settings:
   retry_delay_seconds: 30
   # 是否在 Action 日志中打印 curl 命令的返回内容（用于调试）。
   log_curl_response: true
-  # 忽略的HTTP状态码列表，当网页访问失败且状态码在此列表中时，不发送变更通知
-  ignore_http_status_codes: [404, 403]
+  # 需要提醒的HTTP状态码列表，当网页访问失败且状态码在此列表中时，发送变更通知
+  notify_http_status_codes: [404, 403]
 
 # 监控目标列表
 targets:
@@ -44,6 +44,7 @@ targets:
 
   - type: "url"
     value: "https://xieqiuyi.com/34/"
+
 
   - type: "url"
     value: "https://xieqiuyi.com/Speak/"
