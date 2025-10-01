@@ -51,26 +51,28 @@ def extract_url_from_curl(command):
         return urls[0]
     return None
 
-def fetch_content_from_url(url, retry_count, retry_delay):
+def fetch_content_from_url(url, retry_count, retry_delay, ignore_status_codes=None):
     """从 URL 获取内容, 包含重试机制"""
     last_exception = None
+    last_status_code = None
     for attempt in range(retry_count):
         try:
             response = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
+            last_status_code = response.status_code
             if response.ok:
-                return response.content, False
+                return response.content, False, None
             else:
                 error_state_content = f"HTTP Error: {response.status_code} {response.reason}"
-                return error_state_content.encode('utf-8'), True
+                return error_state_content.encode('utf-8'), True, response.status_code
         except requests.RequestException as e:
             last_exception = e
             print(f"::warning::第 {attempt + 1}/{retry_count} 次尝试获取 '{url}' 失败: {e}")
             if attempt < retry_count - 1:
                 print(f"将在 {retry_delay} 秒后重试...")
                 time.sleep(retry_delay)
-    
+
     error_state_content = f"连接错误: 重试 {retry_count} 次后依然失败 ({type(last_exception).__name__})"
-    return error_state_content.encode('utf-8'), True
+    return error_state_content.encode('utf-8'), True, last_status_code
 
 def fetch_content_from_curl(command, retry_count, retry_delay):
     """执行 curl 命令并获取其输出, 包含重试机制"""
@@ -78,7 +80,7 @@ def fetch_content_from_curl(command, retry_count, retry_delay):
     for attempt in range(retry_count):
         try:
             result = subprocess.run(command, shell=True, capture_output=True, text=True, check=True, timeout=TIMEOUT)
-            return result.stdout.encode('utf-8'), False
+            return result.stdout.encode('utf-8'), False, None
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
             last_exception = e
             error_details = e.stderr if isinstance(e, subprocess.CalledProcessError) else "Timeout"
@@ -89,7 +91,7 @@ def fetch_content_from_curl(command, retry_count, retry_delay):
         except Exception as e:
             print(f"::error::执行 curl 命令时发生未知错误: {e}")
             error_state_content = f"Unknown cURL Error: {type(e).__name__}"
-            return error_state_content.encode('utf-8'), True
+            return error_state_content.encode('utf-8'), True, None
 
     if isinstance(last_exception, subprocess.CalledProcessError):
         error_state_content = f"cURL 命令失败: 重试 {retry_count} 次后依然失败 (退出码 {last_exception.returncode})\n错误: {last_exception.stderr.strip()}"
@@ -97,8 +99,8 @@ def fetch_content_from_curl(command, retry_count, retry_delay):
         error_state_content = f"cURL 命令超时: 重试 {retry_count} 次后依然失败"
     else:
         error_state_content = f"cURL 命令失败: 重试 {retry_count} 次后依然失败"
-        
-    return error_state_content.encode('utf-8'), True
+
+    return error_state_content.encode('utf-8'), True, None
 
 def get_content_hash(content):
     """计算内容的SHA-256哈希值"""
@@ -257,6 +259,7 @@ def main():
             settings = config.get("settings", {})
             retry_count = settings.get("retry_count", 3)
             retry_delay = settings.get("retry_delay_seconds", 5)
+            ignore_status_codes = settings.get("ignore_http_status_codes", [])
     except FileNotFoundError:
         print(f"::error::错误: 未找到配置文件 {CONFIG_FILE}。")
         sys.exit(1)
@@ -268,13 +271,13 @@ def main():
     for target in targets:
         name = target.get("name")
         type = target.get("type")
-        target_url, content, is_error = None, None, False
+        target_url, content, is_error, status_code = None, None, False, None
         if type == "url":
             target_url = target.get("value")
             if not target_url:
                 print(f"::warning::类型为 'url' 的目标缺少 'value' 字段，已跳过。")
                 continue
-            content, is_error = fetch_content_from_url(target_url, retry_count, retry_delay)
+            content, is_error, status_code = fetch_content_from_url(target_url, retry_count, retry_delay, ignore_status_codes)
         elif type == "curl":
             command = target.get("command")
             if not command:
@@ -284,7 +287,7 @@ def main():
             if not target_url:
                 print(f"::error::无法从 curl 命令中解析出 URL，请检查命令: [{command}]")
                 continue
-            content, is_error = fetch_content_from_curl(command, retry_count, retry_delay)
+            content, is_error, status_code = fetch_content_from_curl(command, retry_count, retry_delay)
         else:
             print(f"::warning::不支持的类型 '{type}'，目标 '{name or '未命名'}' 已跳过。")
             continue
@@ -307,21 +310,27 @@ def main():
             with open(latest_hash_file, "r", encoding="utf-8") as f:
                 last_hash = f.read().strip()
 
-        if current_hash != last_hash:
+        # 检查是否需要忽略本次错误
+        should_ignore_error = False
+        if is_error and status_code and ignore_status_codes and status_code in ignore_status_codes:
+            should_ignore_error = True
+            print(f"::notice title=忽略错误::{display_name} 遇到可忽略的HTTP状态码 {status_code}，跳过保存和通知")
+
+        if current_hash != last_hash and not should_ignore_error:
             print(f"::notice title=检测到变化::{display_name}")
             now = datetime.now(CST_TZ)
             timestamp_str = now.strftime("%Y%m%d_%H%M%S")
             change_dir = os.path.join(url_dir, timestamp_str)
             os.makedirs(change_dir)
-            
+
             if is_error: snapshot_filename = "error.txt"
             elif type == "url": snapshot_filename = "snapshot.html"
             else: snapshot_filename = "response.txt"
-            
+
             new_snapshot_file = os.path.join(change_dir, snapshot_filename)
             with open(new_snapshot_file, "wb") as f:
                 f.write(content)
-            
+
             diff_report_content = "新目标，无历史版本可比较。"
             if last_hash:
                 history_dirs = sorted([d for d in os.listdir(url_dir) if os.path.isdir(os.path.join(url_dir, d)) and d != timestamp_str])
@@ -343,14 +352,14 @@ def main():
             diff_report_file = os.path.join(change_dir, "diff.txt")
             with open(diff_report_file, "w", encoding="utf-8") as f:
                 f.write(diff_report_content)
-            
+
             with open(latest_hash_file, "w", encoding="utf-8") as f:
                 f.write(current_hash)
-            
+
             snapshot_url = ""
             if repo_full_name:
                 snapshot_url = f"https://github.com/{repo_full_name}/tree/main/{change_dir.replace(os.sep, '/')}"
-            
+
             diff_lines = diff_report_content.split('\n')
             truncated_diff = '\n'.join(diff_lines[:MAX_DIFF_LINES])
             if len(diff_lines) > MAX_DIFF_LINES:
@@ -361,6 +370,9 @@ def main():
                 "timestamp": now.strftime('%Y-%m-%d %H:%M:%S %Z'),
                 "snapshot_url": snapshot_url, "diff": truncated_diff
             })
+        elif should_ignore_error:
+            # 忽略错误时，不更新最新哈希值，保持上次正常状态
+            print(f"::notice::{display_name} 遇到可忽略错误，保持上次正常状态")
         else:
             print(f"::notice title=无变化::{display_name}")
 
