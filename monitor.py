@@ -316,8 +316,8 @@ def main():
             should_notify_error = True
             print(f"::notice title=需要提醒的错误::{display_name} 遇到需要提醒的HTTP状态码 {status_code}，将发送通知")
 
-        # 只有当内容发生变化或者遇到需要提醒的错误时才处理
-        if current_hash != last_hash or (should_notify_error and current_hash != last_hash):
+        # 只有当内容发生变化时才处理（包括需要提醒的错误）
+        if current_hash != last_hash:
             print(f"::notice title=检测到变化::{display_name}")
             now = datetime.now(CST_TZ)
             timestamp_str = now.strftime("%Y%m%d_%H%M%S")
